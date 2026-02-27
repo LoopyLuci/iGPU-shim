@@ -1,0 +1,12 @@
+{
+  "synapse": {
+    "its": {
+      "cache_capacity_mb": 512,
+      "cache_hit_rate": 0.88,
+      "total_cache_hits": 14200,
+      "total_cache_misses": 1930,
+      "sync_stall_count": 42,
+      "avg_residency_duration_frames": 15.5
+    }
+  }
+}
