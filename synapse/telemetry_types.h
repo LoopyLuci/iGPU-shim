@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace synapse::telemetry {
 
@@ -63,6 +64,18 @@ struct HorizonStats {
             ? static_cast<double>(stalls_avoided) / total
             : 0.0;
     }
+};
+
+// ----------------------------------------------------------------------------
+// Machine Learning model training stats
+// ----------------------------------------------------------------------------
+struct MLTrainingStats {
+    uint64_t total_updates = 0;
+    double   cumulative_reward = 0.0;
+    std::array<uint64_t,3> selection_counts{{0,0,0}}; // JIT, HAI, Oracle
+    float    current_epsilon = 0.05f;
+    float    current_alpha   = 0.01f;
+    std::string training_status = "inactive"; // "active" | "frozen" | "inactive"
 };
 
 // ----------------------------------------------------------------------------
@@ -123,15 +136,29 @@ struct PowerReport {
 };
 
 // ----------------------------------------------------------------------------
-// Top-level session report — mirrors report.json schema
+// Top-level session report — mirrors report.json schema v2.0.0
 // ----------------------------------------------------------------------------
 struct SynapseSessionReport {
-    std::string heuristic       = "temporal_locality_v1";
+    std::string heuristic              = "temporal_locality_v1";
     uint32_t    temporal_window_frames = 3;
 
     PredictionStats its_predictor;
     CacheMetrics    its_cache;
-    HorizonStats    best_horizon;   ///< Horizon with highest energy_efficiency()
+
+    /// Best-performing look-ahead window (highest energy_efficiency()).
+    /// Populated by ForecastingProfiler::serialize_to_report().
+    HorizonStats    best_horizon;
+
+    /// Per-window breakdown for the four evaluated horizons (5/10/20/30 frames).
+    /// Index 0 = window 5, index 1 = window 10, index 2 = window 20, index 3 = window 30.
+    std::vector<HorizonStats> horizon_windows;
+
+    /// Total frames evaluated by ForecastingProfiler this session.
+    uint64_t total_frames_analyzed = 0;
+
+    // Machine learning model training statistics
+    MLTrainingStats  ml_model;
+
     DVFSStats       dvfs;
     JITStats        jit;
     HAIStats        hai;

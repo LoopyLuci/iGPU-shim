@@ -91,5 +91,13 @@
       "oracle_dispatches": null,
       "total_draw_calls": null
     }
+    ,
+    "ml_model": {
+      "epoch": 0,
+      "weights_hash": "",
+      "cumulative_reward": 0.0,
+      "training_status": "inactive",
+      "selection_percent": {"jit":0, "hai":0, "oracle":0}
+    }
   }
 }

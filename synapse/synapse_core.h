@@ -9,6 +9,9 @@
 #include "synapse_hai_builder.h"
 #include "its_engine_hardened.h"
 #include "hash_utils.h"     // canonical workload_context_hash — DRY fix
+#include "ml/ml_sub_api.h"
+#include "ml/reward_calculator.h"
+#include "power_estimator.h"
 #include <chrono>
 #include <algorithm>
 
@@ -43,7 +46,20 @@ public:
     const JITStutterStats& jit_stutter_stats() const { return jit_stats_; }
 
     // ------------------------------------------------------------------------
-    // PRODUCTION CRITICAL PATH: vkCmdDrawIndexed
+    /// @brief Main interception entry point — called instead of vkCmdDrawIndexed.
+    ///
+    /// Executes the full Synapse critical path:
+    ///   1. Captures @p WorkloadSignature and pushes it to @p TelemetryRingBuffer (lock-free).
+    ///   2. Calls ITS to ensure required mip levels are resident or queued.
+    ///   3. Invokes @p Scheduler to decide JIT / HAI / Oracle backend.
+    ///   4. Dispatches to the selected backend.
+    ///
+    /// @param cmd           Vulkan command buffer the draw is recorded into.
+    /// @param indexCount    Index count from the application draw call.
+    /// @param instanceCount Instance count from the application draw call.
+    /// @param firstIndex    First index offset from the application draw call.
+    ///
+    /// @note Target latency: p99 ≤ 1 µs end-to-end (see bench_critical_path.cpp).
     // ------------------------------------------------------------------------
     void handle_draw_indexed(
         VkCommandBuffer cmd,
@@ -59,8 +75,9 @@ public:
         // Ensure required mips are resident or queued for DMA
         its_engine_.prepare_for_use(get_bound_image(cmd), current_frame_);
 
-        // 3. Backend Decision
-        ExecutionBackend backend = scheduler_.decide_backend(sig);
+        // 3. Backend Decision (ML contextual bandit)
+        const auto t0 = std::chrono::high_resolution_clock::now();
+        ExecutionBackend backend = ml_api_.decide(sig);
 
         // 4. Execution Routing
         switch (backend) {
@@ -76,6 +93,15 @@ public:
                 orig_draw_indexed_(cmd, indexCount, instanceCount, firstIndex, 0, 0);
                 break;
         }
+        const auto t1 = std::chrono::high_resolution_clock::now();
+
+        // 5. Reward calculation & observe (non-blocking from render-thread perspective)
+        const double elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        power_estimator_.increment_frame();
+        const auto pr = power_estimator_.generate();
+        const uint32_t jit_over_budget = jit_stats_.is_over_budget() ? 1u : 0u;
+        const float reward = static_cast<float>(reward_calc_.compute(static_cast<float>(elapsed_ms), pr, 0u, jit_over_budget));
+        ml_api_.observe_from_signature(backend, reward, sig);
     }
 
     // -----------------------------------------------------------------------
@@ -144,6 +170,11 @@ private:
 
     // JIT stutter telemetry (populated during execute_jit_path Oracle fallbacks)
     JITStutterStats        jit_stats_;
+
+    // ML components
+    synapse::ml::MLSubAPI        ml_api_;
+    synapse::ml::RewardCalculator reward_calc_;
+    synapse::metrics::PowerEstimator power_estimator_;
 
     // Synapse Sub-Modules
     TelemetryRingBuffer    telemetry_;
