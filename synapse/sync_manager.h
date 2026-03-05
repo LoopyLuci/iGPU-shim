@@ -5,7 +5,7 @@
 #pragma once
 
 #include <unordered_map>
-#include <mutex>
+#include <shared_mutex>   // std::shared_mutex, std::shared_lock, std::unique_lock
 #include <cstdint>
 #include <atomic>
 
