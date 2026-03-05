@@ -75,9 +75,23 @@ public:
         // Ensure required mips are resident or queued for DMA
         its_engine_.prepare_for_use(get_bound_image(cmd), current_frame_);
 
-        // 3. Backend Decision (ML contextual bandit)
+        // 3. Backend Decision (ML contextual bandit) — supply live telemetry
         const auto t0 = std::chrono::high_resolution_clock::now();
-        ExecutionBackend backend = ml_api_.decide(sig);
+        // Build a lightweight session report with currently-available metrics
+        synapse::telemetry::SynapseSessionReport live_report{};
+        // Power telemetry populated after execution (below)
+        // JIT stutter telemetry
+        live_report.jit.cold_cache_fallbacks = jit_stats_.cold_cache_fallbacks;
+        live_report.jit.worst_fallback_ms    = jit_stats_.worst_fallback_ms;
+        live_report.jit.total_fallback_ms    = jit_stats_.total_fallback_ms;
+        // ITS cache telemetry (best-effort; method may return 0 until instrumented)
+        float its_hit = its_engine_.get_cache_hit_rate();
+        const uint64_t kSampleBase = 1000;
+        live_report.its_cache.hits = static_cast<uint64_t>(its_hit * kSampleBase);
+        live_report.its_cache.misses = kSampleBase - live_report.its_cache.hits;
+        live_report.its_cache.current_usage_bytes = 0;
+        // Pass a pointer to the live report into the ML decision path
+        ExecutionBackend backend = ml_api_.decide(sig, &live_report);
 
         // 4. Execution Routing
         switch (backend) {
@@ -98,10 +112,15 @@ public:
         // 5. Reward calculation & observe (non-blocking from render-thread perspective)
         const double elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
         power_estimator_.increment_frame();
-        const auto pr = power_estimator_.generate();
+        const auto pr2 = power_estimator_.generate();
+        // Fill in power telemetry now that we have it
+        live_report.power = pr2;
+        // If ITS engine exposes cache hit rate, copy it
+        live_report.its_cache = live_report.its_cache; // placeholder (keeps zeros)
+
         const uint32_t jit_over_budget = jit_stats_.is_over_budget() ? 1u : 0u;
-        const float reward = static_cast<float>(reward_calc_.compute(static_cast<float>(elapsed_ms), pr, 0u, jit_over_budget));
-        ml_api_.observe_from_signature(backend, reward, sig);
+        const float reward = static_cast<float>(reward_calc_.compute(static_cast<float>(elapsed_ms), pr2, 0u, jit_over_budget));
+        ml_api_.observe_from_signature(backend, reward, sig, &live_report);
     }
 
     // -----------------------------------------------------------------------

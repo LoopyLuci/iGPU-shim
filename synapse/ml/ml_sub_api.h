@@ -2,6 +2,7 @@
 
 #include "contextual_bandit.h"
 #include "feature_encoder.h"
+#include "../telemetry_types.h"
 #include <string>
 #include <fstream>
 #include <thread>
@@ -45,9 +46,9 @@ public:
         bandit_.load_weights(w);
     }
 
-    // Make a decision from a WorkloadSignature
-    ExecutionBackend decide(const WorkloadSignature& sig) {
-        return bandit_.choose_action(encoder_.encode(sig));
+    // Make a decision from a WorkloadSignature, optionally using live telemetry
+    ExecutionBackend decide(const WorkloadSignature& sig, const synapse::telemetry::SynapseSessionReport* report = nullptr) {
+        return bandit_.choose_action(encoder_.encode(sig, report));
     }
 
     // Observe outcome with features provided externally
@@ -57,9 +58,9 @@ public:
         record_experience(f, backend_to_index(a), reward);
     }
 
-    // Observe by passing a WorkloadSignature (encodes internally)
-    void observe_from_signature(ExecutionBackend a, float reward, const WorkloadSignature& sig) {
-        const Features f = encoder_.encode(sig);
+    // Observe by passing a WorkloadSignature (encodes internally); can accept telemetry
+    void observe_from_signature(ExecutionBackend a, float reward, const WorkloadSignature& sig, const synapse::telemetry::SynapseSessionReport* report = nullptr) {
+        const Features f = encoder_.encode(sig, report);
         observe(a, reward, f);
     }
 

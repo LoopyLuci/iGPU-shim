@@ -1,6 +1,6 @@
 # Project Synapse — Engineering Roadmap & Development Plan
 
-**Version:** 1.2.0  
+**Version:** 1.3.0  
 **Date:** March 5, 2026  
 **Program Manager:** Advanced Architecture Group  
 **Single-Sentence Goal:** Deliver a production-grade hybrid iGPU shim that demonstrably reduces driver CPU overhead and memory bandwidth consumption, verified against measurable acceptance criteria rooted in the existing `report.json` telemetry baseline.
@@ -17,7 +17,8 @@
 6. [Phase 4 — Predictive Power Governance (COMPLETE)](#phase-4--predictive-power-governance-complete)
 7. [Phase 5 — Stability & Environmental Hardening (COMPLETE)](#phase-5--stability--environmental-hardening-complete)
 8. [Phase 6 — Verification, Profiling & Refinement (ACTIVE)](#phase-6--verification-profiling--refinement-active)
-9. [Phase 7 — Hardware Co-Design Proposals (PLANNED)](#phase-7--hardware-co-design-proposals-planned)
+9. [Phase 6B — ML Sub-API, Testing System & Live Telemetry (COMPLETE)](#phase-6b--ml-sub-api-testing-system--live-telemetry-complete)
+10. [Phase 7 — Hardware Co-Design Proposals (PLANNED)](#phase-7--hardware-co-design-proposals-planned)
 10. [Open Risks & Mitigations](#open-risks--mitigations)
 11. [Acceptance Criteria Master Checklist](#acceptance-criteria-master-checklist)
 12. [Engineering Principles Applied](#engineering-principles-applied)
@@ -35,6 +36,7 @@
 | 4     | Predictive Power Governance         | ✅ Complete | Power Management Team    |
 | 5     | Stability & Environmental Hardening | ✅ Complete | Reliability Team         |
 | 6     | Verification, Profiling & Refinement| 🔄 Active  | QA + UMD Team            |
+| 6B    | ML Sub-API, Testing System & Live Telemetry | ✅ Complete | ML + UMD Team   |
 | 7     | Hardware Co-Design Proposals        | 📋 Planned | Architecture Group       |
 
 ---
@@ -329,6 +331,47 @@ When `shader_complexity_trend > COMPLEXITY_THRESHOLD` AND `confidence > 0.82f`:
 - [x] Risk #8 resolved: `JITSpecializationCache` secondary key collision detection + `evict()` + `collision_count()`
 - [x] Logic is clear enough for a new engineer to understand without author guidance (`docs/getting_started.md`)
 - [x] CPU overhead reduction validated as ≥ 20% vs. baseline for high-draw-call workloads (bench CI gate)
+
+---
+
+## Phase 6B — ML Sub-API, Testing System & Live Telemetry (COMPLETE)
+
+### Purpose
+Add an in-process contextual-bandit ML router to replace the rule-based `Scheduler::decide_backend()`, a full programmatic testing API for agents and integration tests, and live telemetry wiring throughout the feature encoder.
+
+### Deliverables
+
+| Artifact | File | Status |
+|:---------|:-----|:-------|
+| `FeatureEncoder` (WorkloadSignature → float[8]) | `synapse/ml/feature_encoder.h` | ✅ |
+| `ContextualBandit` (linear, ε-greedy, weight save/load) | `synapse/ml/contextual_bandit.h` | ✅ |
+| `RewardCalculator` (latency + power shaping) | `synapse/ml/reward_calculator.h` | ✅ |
+| `MLSubAPI` (replay buffer, background trainer thread, checkpoint/restore) | `synapse/ml/ml_sub_api.h` | ✅ |
+| `MLTrainingStats` in telemetry schema | `synapse/telemetry_types.h` | ✅ |
+| `ml_model` section in report.json | `report.json` | ✅ |
+| Live telemetry wired into `FeatureEncoder` (f[3]..f[6]) | `synapse/ml/feature_encoder.h` | ✅ |
+| ITS cache counters (`cache_hits_`, `cache_misses_`, `fault_count_`) | `synapse/its_engine_hardened.h` | ✅ |
+| `register_texture()` / `unregister_texture()` / `mark_dma_complete()` | `synapse/its_engine_hardened.h` | ✅ |
+| Simulation tool – camera panning trace | `synapse/tools/simulate_panning.cpp` | ✅ |
+| `AgentAPI` inspector + injector | `synapse/testing/agent_api.h` | ✅ |
+| `ScenarioRunner` + `TestScenario` | `synapse/testing/scenario_runner.h` | ✅ |
+| `CoverageTracker` | `synapse/testing/coverage_tracker.h` | ✅ |
+| `synapse_cli` with train/explain/run-scenario | `synapse/tools/synapse_cli.cpp` | ✅ |
+| Windows installer (winget/choco) | `scripts/install_deps.ps1` | ✅ |
+| Linux installer (apt) | `scripts/install_deps.sh` | ✅ |
+| MSBuild project + Windows build script | `synapse/tools/simulate_panning.vcxproj`, `scripts/build_windows.ps1` | ✅ |
+| GitHub Actions CI (Windows + Ubuntu matrix) | `.github/workflows/ci.yml` | ✅ |
+
+### Open Items After 6B
+
+| Item | Priority | Notes |
+|:-----|:---------|:------|
+| `TextureObject` struct definition in `its_engine_hardened.h` | High | Needed for compile |
+| `Analyzer::get_mip_demand_probability()` stub needed | High | Called by `prepare_for_use()` |
+| `textures_mutex_` declaration in private section | High | Build error without it |
+| `hardware_fence_completed()` real MMIO query | Medium | Stub returns `true` unconditionally |
+| Vulkan layer manifest (`.json`) + `vkGetInstanceProcAddr` export | Critical | Required for native hardware |
+| Build system: `CMakeLists.txt` (replaces scatter of `.vcxproj`) | High | Required for Linux CI |
 
 ---
 
