@@ -5,6 +5,7 @@
 #pragma once
 
 #include "synapse_umd.h"
+#include "hash_utils.h"     // canonical backend_context_hash — DRY fix
 #include <unordered_map>
 #include <vector>
 
@@ -79,7 +80,8 @@ private:
     }
 
     uint64_t calculate_context_hash(uint64_t s_hash, ExecutionBackend backend) {
-        return s_hash ^ (static_cast<uint64_t>(backend) << 32);
+        // Delegated to hash_utils.h (DRY fix: local definition removed).
+        return util::backend_context_hash(s_hash, backend);
     }
 
     Analyzer& analyzer_;

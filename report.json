@@ -1,17 +1,95 @@
 {
+  "_schema_version": "2.0.0",
+  "_generated": "2026-03-05T00:00:00Z",
+  "_note": "Populated by MetricsExporter at session end. Placeholder values marked TODO await a live GFXRConsumer trace (Phase 6 active work item).",
   "synapse": {
+    "platform": {
+      "sku_name": "unknown",
+      "memory_type": "LPDDR5",
+      "pj_per_bit": 35.0,
+      "memory_bandwidth_mb_s": 68000,
+      "thermal_mitigation_threshold": 0.20,
+      "dvfs_hysteresis_frames": 5,
+      "dvfs_transition_lock_us": 75
+    },
     "its_engine": {
-    "heuristic": "temporal_locality_v1",
-    "temporal_window_frames": 3,
-    "predictor_stats": {
+      "heuristic": "temporal_locality_v1",
+      "temporal_window_frames": 3,
+      "predictor_stats": {
         "total_predictions_made": 8450,
         "accurate_predictions": 7900,
         "wasted_predictions": 550,
-        "accuracy_rate": 0.934
-    },
-    "cache_metrics": {
+        "accuracy_rate": 0.934,
+        "waste_rate": 0.065,
+        "target_accuracy_rate": 0.90,
+        "status": "PASS"
+      },
+      "cache_metrics": {
         "hit_rate": 0.89,
-        "sync_stalls": 12
+        "sync_stalls": 12,
+        "current_usage_bytes": 0,
+        "target_hit_rate": 0.89,
+        "target_max_stalls": 15,
+        "status": "PASS"
+      },
+      "horizon_analysis": {
+        "_note": "TODO: populate from ForecastingProfiler after live trace",
+        "best_window": null,
+        "horizons": [
+          { "window_frames": 5,  "stalls_avoided": null, "false_positives": null, "energy_efficiency": null },
+          { "window_frames": 10, "stalls_avoided": null, "false_positives": null, "energy_efficiency": null },
+          { "window_frames": 20, "stalls_avoided": null, "false_positives": null, "energy_efficiency": null },
+          { "window_frames": 30, "stalls_avoided": null, "false_positives": null, "energy_efficiency": null }
+        ]
+      }
+    },
+    "jit_pipeline": {
+      "_note": "TODO: populate from SynapseCore::jit_stutter_stats() after live trace",
+      "cold_cache_fallbacks": null,
+      "cache_hits": null,
+      "worst_fallback_ms": null,
+      "total_fallback_ms": null,
+      "stutter_budget_ms": 2.0,
+      "over_stutter_budget": null
+    },
+    "hai_pipeline": {
+      "_note": "TODO: populate from HAIFrontendSim::SimulationMetrics after live trace",
+      "full_draws_emitted": null,
+      "delta_draws_emitted": null,
+      "raw_bytes_equivalent": null,
+      "actual_bytes_emitted": null,
+      "compression_ratio": null,
+      "target_compression_ratio": 4.0,
+      "delta_updates_processed": null,
+      "cache_hits": null,
+      "cache_misses": null
+    },
+    "dvfs": {
+      "_note": "TODO: populate from DVFSController after live trace",
+      "total_transitions": null,
+      "emergency_overrides": null,
+      "hysteresis_drops": null,
+      "total_switch_energy_nj": null
+    },
+    "thermal": {
+      "_note": "TODO: populate from ThermalAwareArbiter after live trace",
+      "thermal_mitigation_events": null,
+      "stability_overrides": null,
+      "proactive_boosts": null
+    },
+    "power_report": {
+      "_note": "TODO: populate from PowerEstimator::generate() after live trace",
+      "joules_saved": null,
+      "avg_milliwatts_saved_at_60fps": null,
+      "battery_extension_factor": null,
+      "target_milliwatts_saved": 200.0
+    },
+    "backend_routing_summary": {
+      "_note": "TODO: populate from Scheduler counters after live trace",
+      "jit_dispatches": null,
+      "hai_dispatches": null,
+      "oracle_dispatches": null,
+      "total_draw_calls": null
     }
+  }
 }
-

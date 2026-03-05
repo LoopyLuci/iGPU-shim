@@ -8,6 +8,9 @@
 #include "synapse_jit_backend.h"
 #include "synapse_hai_builder.h"
 #include "its_engine_hardened.h"
+#include "hash_utils.h"     // canonical workload_context_hash — DRY fix
+#include <chrono>
+#include <algorithm>
 
 namespace synapse {
 
@@ -35,6 +38,9 @@ public:
         analyzer_.shutdown();
         if (analyzer_thread_.joinable()) analyzer_thread_.join();
     }
+
+    /// @brief Returns JIT cold-cache stutter telemetry for reporting.
+    const JITStutterStats& jit_stutter_stats() const { return jit_stats_; }
 
     // ------------------------------------------------------------------------
     // PRODUCTION CRITICAL PATH: vkCmdDrawIndexed
@@ -72,18 +78,40 @@ public:
         }
     }
 
+    // -----------------------------------------------------------------------
+    // JIT stutter telemetry – tracks Oracle fallback duration on cache miss
+    // -----------------------------------------------------------------------
+    struct JITStutterStats {
+        uint32_t cold_cache_fallbacks = 0;   // Times JIT returned nullptr
+        double   worst_fallback_ms    = 0.0; // Longest single Oracle fallback (ms)
+        double   total_fallback_ms    = 0.0; // Cumulative time in Oracle fallback
+        static constexpr double kBudgetMs = 2.0; // Acceptable stutter budget
+
+        bool is_over_budget() const { return worst_fallback_ms > kBudgetMs; }
+    };
+
 private:
     void execute_jit_path(VkCommandBuffer cmd, const WorkloadSignature& sig) {
-        // Use the Lock-Free Specialization Cache we designed
-        uint64_t ctx_hash = calculate_context_hash(sig);
+        // Use hash_utils.h canonical function (DRY fix: removed local duplicate)
+        uint64_t ctx_hash = util::workload_context_hash(sig);
         auto specialized = jit_pipeline_.get_optimized_shader(sig.shader_hash, ctx_hash);
 
         if (specialized) {
             // Submit the specialized ISA directly to the GPU's Command Processor
             submit_isa_to_gpu(cmd, specialized->isa_binary);
         } else {
-            // Optimization not ready yet; use Oracle to avoid stalling the frame
+            // Cache miss: measure Oracle fallback duration to detect first-frame stutter
+            const auto t0 = std::chrono::high_resolution_clock::now();
             orig_draw_indexed_(cmd, sig.vertex_count, 1, 0, 0, 0);
+            const auto t1 = std::chrono::high_resolution_clock::now();
+
+            const double elapsed_ms =
+                std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+            jit_stats_.cold_cache_fallbacks++;
+            jit_stats_.total_fallback_ms += elapsed_ms;
+            jit_stats_.worst_fallback_ms  =
+                std::max(jit_stats_.worst_fallback_ms, elapsed_ms);
         }
     }
 
@@ -98,14 +126,8 @@ private:
         hai_builder_.flush_to_hardware();
     }
 
-    // Helper for contextual hashing: Context = ShaderID ^ WorkloadConditions
-    uint64_t calculate_context_hash(const WorkloadSignature& sig) {
-        // Using a standard hash_combine algorithm:
-        // $$ H(s, w) = H(s) \oplus (H(w) + 0x9e3779b9 + (H(s) \ll 6) + (H(s) \gg 2)) $$
-        uint64_t seed = sig.shader_hash;
-        seed ^= sig.draw_call_count + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-        return seed;
-    }
+    // calculate_context_hash removed — use synapse::util::workload_context_hash()
+    // from hash_utils.h. See DRY audit in plan.md Phase 6.
 
     // Hardware interface stubs
     void submit_isa_to_gpu(VkCommandBuffer cmd, const std::vector<uint32_t>& isa) { /* MMIO Write */ }
@@ -119,6 +141,9 @@ private:
 
     // Original Dispatch Table
     PFN_vkCmdDrawIndexed orig_draw_indexed_;
+
+    // JIT stutter telemetry (populated during execute_jit_path Oracle fallbacks)
+    JITStutterStats        jit_stats_;
 
     // Synapse Sub-Modules
     TelemetryRingBuffer    telemetry_;
