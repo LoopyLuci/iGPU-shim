@@ -1,7 +1,7 @@
-// ============================================================================
+// ============================================================================\
 // synapse/synapse_core.h
 // Project Synapse – Unified Driver Integration Hub
-// ============================================================================
+// ============================================================================\
 #pragma once
 
 #include "synapse_umd.h"
@@ -9,11 +9,15 @@
 #include "synapse_hai_builder.h"
 #include "its_engine_hardened.h"
 #include "hash_utils.h"     // canonical workload_context_hash — DRY fix
+#include "telemetry_types.h"  // explicit: SynapseSessionReport used by build_session_report()
 #include "ml/ml_sub_api.h"
 #include "ml/reward_calculator.h"
 #include "power_estimator.h"
 #include <chrono>
 #include <algorithm>
+#include <mutex>
+#include <shared_mutex>
+#include <unordered_map>
 
 namespace synapse {
 
@@ -26,106 +30,113 @@ namespace synapse {
  */
 class SynapseCore {
 public:
-    SynapseCore(PFN_vkCmdDrawIndexed orig_draw)
-        : orig_draw_indexed_(orig_draw),
-          analyzer_(telemetry_),
-          scheduler_(analyzer_),
-          jit_pipeline_(analyzer_),
-          its_engine_(analyzer_)
-    {
-        // Start background worker
-        analyzer_thread_ = std::thread(&Analyzer::process_telemetry_loop, &analyzer_);
-    }
+    SynapseCore(PFN_vkCmdDrawIndexed orig_draw,
+                    PFN_vkCmdDraw orig_draw_non_indexed,
+                    PFN_vkCmdDispatch orig_dispatch,
+                    PFN_vkCmdPushConstants orig_push_constants,
+                    PFN_vkCmdBindDescriptorSets orig_bind_desc_sets,
+                    PFN_vkCmdBindShadersEXT orig_bind_shaders);
+    ~SynapseCore();
 
-    ~SynapseCore() {
-        analyzer_.shutdown();
-        if (analyzer_thread_.joinable()) analyzer_thread_.join();
-    }
+    /// @brief Assembles a point-in-time session report from all live subsystems.
+    ///        Used by AgentAPI::snapshot() and the CLI `snapshot` subcommand.
+    synapse::telemetry::SynapseSessionReport build_session_report() const;
 
     /// @brief Returns JIT cold-cache stutter telemetry for reporting.
     const JITStutterStats& jit_stutter_stats() const { return jit_stats_; }
 
-    // ------------------------------------------------------------------------
-    /// @brief Main interception entry point — called instead of vkCmdDrawIndexed.
-    ///
-    /// Executes the full Synapse critical path:
-    ///   1. Captures @p WorkloadSignature and pushes it to @p TelemetryRingBuffer (lock-free).
-    ///   2. Calls ITS to ensure required mip levels are resident or queued.
-    ///   3. Invokes @p Scheduler to decide JIT / HAI / Oracle backend.
-    ///   4. Dispatches to the selected backend.
-    ///
-    /// @param cmd           Vulkan command buffer the draw is recorded into.
-    /// @param indexCount    Index count from the application draw call.
-    /// @param instanceCount Instance count from the application draw call.
-    /// @param firstIndex    First index offset from the application draw call.
-    ///
-    /// @note Target latency: p99 ≤ 1 µs end-to-end (see bench_critical_path.cpp).
-    // ------------------------------------------------------------------------
+    /// @brief Wire the ITS engine's power estimator for bandwidth accounting.
+    /// Called once after device creation.
+    void wire_power_estimator(synapse::metrics::PowerEstimator* estimator) {
+        its_engine_.set_power_estimator(estimator);
+    }
+
+    /// @brief Accessor for power estimator (used by layer_entry.cpp wiring).
+    synapse::metrics::PowerEstimator* power_estimator() {
+        return &power_estimator_;
+    }
+
+    /// @brief Record the most-recently-bound pipeline for @p cmd.
+    /// @param shader_hash  FNV64 hash of the pipeline's shader stage path names.
+    void notify_bind_pipeline(VkCommandBuffer cmd,
+                                  VkPipeline      pipeline,
+                                  uint64_t        shader_hash);
+
+    /// @brief Record the primary sampled image for @p cmd (slot 0 of set 0).
+    void notify_bind_image(VkCommandBuffer cmd, VkImage image);
+
+    /// @brief Record a bound descriptor set for @p cmd — enables per-set texture tracking.
+    void notify_bind_descriptor_set(VkCommandBuffer cmd, uint32_t set_index,
+                                         const VkDescriptorSet& descriptor_set);
+
+    /// @brief Register a texture image with the ITS engine when vkCreateImage is observed.
+    void notify_create_image(VkImage image, const VkImageCreateInfo* create_info,
+                                  uint64_t texture_id);
+
+    /// @brief Unregister a texture image with the ITS engine when vkDestroyImage is observed.
+    void notify_destroy_image(VkImage image);
+
+    /// @brief Free tracking state when the command buffer is destroyed.
+    void notify_free_cmd_buf(VkCommandBuffer cmd);
+
+    /// @brief Called by Vulkan layer when vkCmdBindPipeline is intercepted.
+    ///        Forwards to the per-cmd-buf state tracker.
+    void notify_bind_pipeline(VkCommandBuffer cmd, VkPipeline pipeline) {
+        notify_bind_pipeline(cmd, pipeline,
+            static_cast<uint64_t>(reinterpret_cast<uintptr_t>(pipeline)));
+    }
+
+    // -------------------------------------------------------------------
+    // Main interception entry points — called by layer_entry.cpp
+    // All follow the same pattern: capture signature, route to backend.
+    // -------------------------------------------------------------------
+
+    /// @brief Intercept vkCmdDrawIndexed — route to JIT / HAI / Oracle.
     void handle_draw_indexed(
         VkCommandBuffer cmd,
         uint32_t indexCount,
         uint32_t instanceCount,
-        uint32_t firstIndex)
-    {
-        // 1. Telemetry Aggregation (Lock-Free)
-        WorkloadSignature sig = capture_current_signature(cmd, indexCount);
-        telemetry_.push(sig);
+        uint32_t firstIndex,
+        int32_t  vertexOffset = 0,
+        uint32_t firstInstance = 0);
 
-        // 2. Memory & Bandwidth Optimization (ITS)
-        // Ensure required mips are resident or queued for DMA
-        its_engine_.prepare_for_use(get_bound_image(cmd), current_frame_);
+    /// @brief Intercept vkCmdDraw — non-indexed variant.
+    void handle_draw(
+        VkCommandBuffer cmd,
+        uint32_t vertexCount,
+        uint32_t instanceCount,
+        uint32_t firstVertex,
+        uint32_t firstInstance);
 
-        // 3. Backend Decision (ML contextual bandit) — supply live telemetry
-        const auto t0 = std::chrono::high_resolution_clock::now();
-        // Build a lightweight session report with currently-available metrics
-        synapse::telemetry::SynapseSessionReport live_report{};
-        // Power telemetry populated after execution (below)
-        // JIT stutter telemetry
-        live_report.jit.cold_cache_fallbacks = jit_stats_.cold_cache_fallbacks;
-        live_report.jit.worst_fallback_ms    = jit_stats_.worst_fallback_ms;
-        live_report.jit.total_fallback_ms    = jit_stats_.total_fallback_ms;
-        // ITS cache telemetry (best-effort; method may return 0 until instrumented)
-        float its_hit = its_engine_.get_cache_hit_rate();
-        const uint64_t kSampleBase = 1000;
-        live_report.its_cache.hits = static_cast<uint64_t>(its_hit * kSampleBase);
-        live_report.its_cache.misses = kSampleBase - live_report.its_cache.hits;
-        live_report.its_cache.current_usage_bytes = 0;
-        // Pass a pointer to the live report into the ML decision path
-        ExecutionBackend backend = ml_api_.decide(sig, &live_report);
+    /// @brief Intercept vkCmdDispatch — compute dispatch variant.
+    void handle_dispatch(
+        VkCommandBuffer cmd,
+        uint32_t groupCountX,
+        uint32_t groupCountY,
+        uint32_t groupCountZ);
 
-        // 4. Execution Routing
-        switch (backend) {
-            case ExecutionBackend::JIT:
-                execute_jit_path(cmd, sig);
-                break;
-            case ExecutionBackend::HAI:
-                execute_hai_path(cmd, sig);
-                break;
-            case ExecutionBackend::Oracle:
-            default:
-                // Fallback to native driver code
-                orig_draw_indexed_(cmd, indexCount, instanceCount, firstIndex, 0, 0);
-                break;
-        }
-        const auto t1 = std::chrono::high_resolution_clock::now();
+    /// @brief Intercept vkCmdPushConstants — feeds the PushConstantOptimizer.
+    void handle_push_constants(
+        VkCommandBuffer cmd,
+        VkPipelineLayout layout,
+        uint32_t        offset,
+        uint32_t        size,
+        const void*     pValues);
 
-        // 5. Reward calculation & observe (non-blocking from render-thread perspective)
-        const double elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-        power_estimator_.increment_frame();
-        const auto pr2 = power_estimator_.generate();
-        // Fill in power telemetry now that we have it
-        live_report.power = pr2;
-        // If ITS engine exposes cache hit rate, copy it
-        live_report.its_cache = live_report.its_cache; // placeholder (keeps zeros)
+    /// @brief Intercept vkCmdBindDescriptorSets — enables per-set texture tracking.
+    void handle_bind_descriptor_sets(
+        VkCommandBuffer                    cmd,
+        VkPipelineBindPoint                bindPoint,
+        VkPipelineLayout                   layout,
+        uint32_t                           firstSet,
+        uint32_t                           descriptorSetCount,
+        const VkDescriptorSet*             pDescriptorSets,
+        uint32_t                           dynamicOffsetCount,
+        const uint32_t*                    pDynamicOffsets);
 
-        const uint32_t jit_over_budget = jit_stats_.is_over_budget() ? 1u : 0u;
-        const float reward = static_cast<float>(reward_calc_.compute(static_cast<float>(elapsed_ms), pr2, 0u, jit_over_budget));
-        ml_api_.observe_from_signature(backend, reward, sig, &live_report);
-    }
-
-    // -----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
     // JIT stutter telemetry – tracks Oracle fallback duration on cache miss
-    // -----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
     struct JITStutterStats {
         uint32_t cold_cache_fallbacks = 0;   // Times JIT returned nullptr
         double   worst_fallback_ms    = 0.0; // Longest single Oracle fallback (ms)
@@ -136,75 +147,75 @@ public:
     };
 
 private:
-    void execute_jit_path(VkCommandBuffer cmd, const WorkloadSignature& sig) {
-        // Use hash_utils.h canonical function (DRY fix: removed local duplicate)
-        uint64_t ctx_hash = util::workload_context_hash(sig);
-        auto specialized = jit_pipeline_.get_optimized_shader(sig.shader_hash, ctx_hash);
+    // ------------------------------------------------------------------
+    // Backends
+    // ------------------------------------------------------------------
+    void execute_jit_path(VkCommandBuffer cmd, const WorkloadSignature& sig);
+    void execute_hai_path(VkCommandBuffer cmd, const WorkloadSignature& sig);
+    void execute_oracle_draw(VkCommandBuffer cmd, const WorkloadSignature& sig,
+                                 uint32_t indexCount, uint32_t instanceCount,
+                                 uint32_t firstIndex, int32_t vertexOffset,
+                                 uint32_t firstInstance);
 
-        if (specialized) {
-            // Submit the specialized ISA directly to the GPU's Command Processor
-            submit_isa_to_gpu(cmd, specialized->isa_binary);
-        } else {
-            // Cache miss: measure Oracle fallback duration to detect first-frame stutter
-            const auto t0 = std::chrono::high_resolution_clock::now();
-            orig_draw_indexed_(cmd, sig.vertex_count, 1, 0, 0, 0);
-            const auto t1 = std::chrono::high_resolution_clock::now();
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+    bool can_delta_update(const WorkloadSignature& sig) const;
+    VkImage get_bound_image(VkCommandBuffer cmd);
+    WorkloadSignature capture_current_signature(VkCommandBuffer cmd, uint32_t count);
+    void increment_backend_counter(ExecutionBackend backend);
 
-            const double elapsed_ms =
-                std::chrono::duration<double, std::milli>(t1 - t0).count();
+    // ------------------------------------------------------------------
+    // Hardware interface stubs — T1-3/T1-4/T1-5
+    // ------------------------------------------------------------------
+    void submit_isa_to_gpu(VkCommandBuffer /*cmd*/,
+                                const std::vector<uint32_t>& /*isa*/);
 
-            jit_stats_.cold_cache_fallbacks++;
-            jit_stats_.total_fallback_ms += elapsed_ms;
-            jit_stats_.worst_fallback_ms  =
-                std::max(jit_stats_.worst_fallback_ms, elapsed_ms);
-        }
-    }
-
-    void execute_hai_path(VkCommandBuffer cmd, const WorkloadSignature& sig) {
-        // Build and stream the dense HAI bytecode
-        hai_builder_.begin_batch();
-        if (can_delta_update(sig)) {
-            hai_builder_.write_delta_draw(sig);
-        } else {
-            hai_builder_.write_full_draw(sig);
-        }
-        hai_builder_.flush_to_hardware();
-    }
-
-    // calculate_context_hash removed — use synapse::util::workload_context_hash()
-    // from hash_utils.h. See DRY audit in plan.md Phase 6.
-
-    // Hardware interface stubs
-    void submit_isa_to_gpu(VkCommandBuffer cmd, const std::vector<uint32_t>& isa) { /* MMIO Write */ }
-    VkImage get_bound_image(VkCommandBuffer cmd) { /* State Tracking Logic */ return nullptr; }
-    WorkloadSignature capture_current_signature(VkCommandBuffer cmd, uint32_t count) {
-        WorkloadSignature sig{};
-        sig.vertex_count = count;
-        // In production, we'd query the bound PSO for the shader_hash here
-        return sig;
-    }
+    // ------------------------------------------------------------------
+    // Per-command-buffer pipeline/image state
+    // ------------------------------------------------------------------
+    struct CmdBufState {
+        VkPipeline              bound_pipeline = VK_NULL_HANDLE;
+        VkImage                 bound_image    = VK_NULL_HANDLE; ///< primary sampled slot (set 0, binding 0)
+        uint64_t                shader_hash    = 0;              ///< FNV64 of pipeline shader paths
+        std::array<VkDescriptorSet, 4> descriptor_sets{};       ///< bound descriptor sets
+    };
 
     // Original Dispatch Table
     PFN_vkCmdDrawIndexed orig_draw_indexed_;
+    PFN_vkCmdDraw        orig_draw_         = nullptr;
+    PFN_vkCmdDispatch    orig_dispatch_     = nullptr;
+    PFN_vkCmdPushConstants orig_push_constants_ = nullptr;
+    PFN_vkCmdBindDescriptorSets orig_bind_descriptor_sets_ = nullptr;
+    PFN_vkCmdBindShadersEXT    orig_bind_shaders_       = nullptr;
 
-    // JIT stutter telemetry (populated during execute_jit_path Oracle fallbacks)
-    JITStutterStats        jit_stats_;
+    // JIT stutter telemetry
+    JITStutterStats jit_stats_;
+
+    // Backend routing counters for report.json
+    uint32_t backend_jit_count_    = 0;
+    uint32_t backend_hai_count_    = 0;
+    uint32_t backend_oracle_count_ = 0;
+
+    // Per-command-buffer pipeline/image state
+    std::unordered_map<VkCommandBuffer, CmdBufState> cmd_state_;
+    std::shared_mutex cmd_state_mutex_;
 
     // ML components
-    synapse::ml::MLSubAPI        ml_api_;
-    synapse::ml::RewardCalculator reward_calc_;
+    synapse::ml::MLSubAPI          ml_api_;
+    synapse::ml::RewardCalculator  reward_calc_;
     synapse::metrics::PowerEstimator power_estimator_;
 
     // Synapse Sub-Modules
-    TelemetryRingBuffer    telemetry_;
-    Analyzer              analyzer_;
-    Scheduler             scheduler_;
-    JITPipeline           jit_pipeline_;
-    HAIBytecodeBuilder    hai_builder_;
-    TextureStreamingEngineHardened its_engine_;
+    TelemetryRingBuffer             telemetry_;
+    Analyzer                        analyzer_;
+    Scheduler                       scheduler_;
+    JITPipeline                     jit_pipeline_;
+    HAIBytecodeBuilder              hai_builder_;
+    TextureStreamingEngineHardened  its_engine_;
 
-    std::thread           analyzer_thread_;
-    uint64_t              current_frame_ = 0;
+    std::thread  analyzer_thread_;
+    uint64_t     current_frame_ = 0;
 };
 
 } // namespace synapse

@@ -1,7 +1,11 @@
 #pragma once
 
-#include "telemetry_types.h"
-#include "synapse_umd.h"
+// Include the full SynapseCore so AgentAPI::snapshot() can query live subsystems.
+// This is acceptable in a testing/inspection header (not a hot-path include).
+#include "../synapse_core.h"
+#include "../telemetry_types.h"
+#include "../synapse_umd.h"
+#include "../dvfs_controller.h"   // synapse::power::PState for SynapseInjector
 #include <vector>
 #include <optional>
 #include <string>
@@ -18,10 +22,15 @@ struct SystemSnapshot {
 // Lightweight inspector to capture a serialisable snapshot of the running system.
 class SynapseInspector {
 public:
-    // Capture a snapshot. Implementations in the UMD must populate fields.
-    SystemSnapshot snapshot() const {
+    // Capture a snapshot.
+    // Pass a non-null `core` pointer to populate the report from live subsystems
+    // (JIT stutter stats, ITS counters, ML bandit stats, power report).
+    // T3-5: wires snapshot to real SynapseCore state.
+    SystemSnapshot snapshot(synapse::SynapseCore* core = nullptr) const {
         SystemSnapshot s{};
-        // In production this calls into SynapseCore to fill `report`.
+        if (core) {
+            s.report = core->build_session_report();
+        }
         return s;
     }
 };
@@ -38,7 +47,8 @@ public:
         // In production: write into PlatformConfig override or Thermal subsystem
     }
 
-    void set_dvfs_state(PState p) {
+    void set_dvfs_state(synapse::power::PState p) {
+        (void)p;
         // Force DVFSController to the requested PState (testing only)
     }
 
@@ -59,9 +69,13 @@ public:
 class AgentAPI {
 public:
     SynapseInspector inspector;
-    SynapseInjector injector;
+    SynapseInjector  injector;
 
-    SystemSnapshot snapshot() { return inspector.snapshot(); }
+    // Convenience overload: snapshot without a live core (returns zeroed report).
+    SystemSnapshot snapshot() { return inspector.snapshot(nullptr); }
+
+    // Live snapshot: pulls data from the running SynapseCore instance.
+    SystemSnapshot snapshot(synapse::SynapseCore* core) { return inspector.snapshot(core); }
 };
 
 } // namespace synapse::testing

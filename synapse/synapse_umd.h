@@ -25,6 +25,7 @@ struct WorkloadSignature {
     uint32_t vertex_count;               
     uint32_t texture_bindings;            
     bool     is_compute_dispatch;        
+    uint64_t shader_hash = 0;           ///< FNV64 of bound pipeline shader paths; 0 = unknown
 };
 
 // Use standard cache line size to prevent false sharing between threads
@@ -110,6 +111,22 @@ public:
 
     void shutdown() { running_.store(false, std::memory_order_relaxed); }
 
+    /// @brief Called by SynapseCore each frame with fresh ITS counters so that
+    ///        get_mip_demand_probability() returns a data-driven estimate.
+    void update_its_stats(uint64_t hits, uint64_t misses) noexcept {
+        its_hits_.store(hits,   std::memory_order_relaxed);
+        its_misses_.store(misses, std::memory_order_relaxed);
+    }
+
+    /// @brief Laplace-smoothed ITS hit rate as mip-demand probability.
+    /// Formula: (H+1)/(H+M+2) — equals 0.5 on cold start, converges to the
+    /// observed cache-hit rate as the session accumulates evidence.
+    float get_mip_demand_probability(uint64_t /*texture_id*/) const noexcept {
+        const uint64_t h = its_hits_.load(std::memory_order_relaxed);
+        const uint64_t m = its_misses_.load(std::memory_order_relaxed);
+        return static_cast<float>(h + 1u) / static_cast<float>(h + m + 2u);
+    }
+
 private:
     void update_model(const WorkloadSignature& sample) {
         ExecutionBackend recommendation = ExecutionBackend::JIT;
@@ -130,6 +147,9 @@ private:
     TelemetryRingBuffer& telemetry_;
     std::atomic<ExecutionBackend> inferred_backend_{ExecutionBackend::Oracle};
     std::atomic<bool> running_{true};
+    // ITS hit/miss counters fed by SynapseCore::handle_draw_indexed each frame.
+    std::atomic<uint64_t> its_hits_{0};
+    std::atomic<uint64_t> its_misses_{0};
 };
 
 // ----------------------------------------------------------------------------

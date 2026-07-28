@@ -30,11 +30,13 @@ public:
             f[3] = 0.5f;
         }
 
-        // 4: dvfs_headroom — lower when many transitions or emergency overrides occurred.
+        // 4: dvfs_headroom — linear expression: lower on frequent transitions,
+        //    further penalised by emergency overrides (T2-5 precision fix).
         if (report) {
-            float trans_norm = std::min(1.0f, static_cast<float>(report->dvfs.total_transitions) / 100.0f);
-            float emergency_penalty = std::min(1.0f, static_cast<float>(report->dvfs.emergency_overrides) * 0.1f);
-            f[4] = std::clamp(1.0f - (trans_norm + emergency_penalty), 0.0f, 1.0f);
+            f[4] = std::clamp(
+                1.0f - static_cast<float>(report->dvfs.total_transitions) / 50.0f
+                     + static_cast<float>(report->dvfs.emergency_overrides) * -0.2f,
+                0.0f, 1.0f);
         } else {
             f[4] = 0.5f;
         }

@@ -39,7 +39,7 @@
 
 ## Architecture Overview
 
-Project Synapse inserts itself as a transparent layer inside the User-Mode Driver (UMD). Every Vulkan `vkCmdDrawIndexed` and `vkCmdDispatch` call is intercepted before it reaches the native ISA generator. The shim performs real-time telemetry collection, workload classification, and execution routing in under 1 microsecond of additional latency on the critical path.
+Project Synapse inserts itself as a transparent layer inside the User-Mode Driver (UMD). Every Vulkan command that touches GPU resources — `vkCmdDrawIndexed`, `vkCmdDraw`, `vkCmdDispatch`, `vkCmdPushConstants`, `vkCmdBindDescriptorSets` — is intercepted before it reaches the native ISA generator. The shim hooks `vkCreateImage`/`vkDestroyImage` to track texture residency for ITS and `vkCmdBindShadersEXT` for VK_EXT_shader_object JIT submissions. The shim performs real-time telemetry collection, workload classification, and execution routing in under 1 microsecond of additional latency on the critical path.
 
 ```
 Application (Game / Compute Workload)
@@ -115,14 +115,29 @@ Application (Game / Compute Workload)
 #### Public Interface
 
 ```cpp
-SynapseCore(PFN_vkCmdDrawIndexed orig_draw);
-~SynapseCore();  // Signals shutdown, joins Analyzer thread
+SynapseCore(PFN_vkCmdDrawIndexed orig_draw,
+            PFN_vkCmdDraw orig_draw_non_indexed,
+            PFN_vkCmdDispatch orig_dispatch,
+            PFN_vkCmdPushConstants orig_push_constants,
+            PFN_vkCmdBindDescriptorSets orig_bind_desc_sets,
+            PFN_vkCmdBindShadersEXT orig_bind_shaders);
+~SynapseCore();
 
-void handle_draw_indexed(
-    VkCommandBuffer cmd,
-    uint32_t indexCount,
-    uint32_t instanceCount,
-    uint32_t firstIndex);
+void handle_draw_indexed(VkCommandBuffer cmd, uint32_t indexCount,
+                          uint32_t instanceCount, uint32_t firstIndex,
+                          int32_t vertexOffset = 0, uint32_t firstInstance = 0);
+void handle_draw(VkCommandBuffer cmd, uint32_t vertexCount,
+                  uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
+void handle_dispatch(VkCommandBuffer cmd, uint32_t groupCountX,
+                     uint32_t groupCountY, uint32_t groupCountZ);
+void handle_push_constants(VkCommandBuffer cmd, VkPipelineLayout layout,
+                            uint32_t offset, uint32_t size, const void* pValues);
+void handle_bind_descriptor_sets(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint,
+                                  VkPipelineLayout layout, uint32_t firstSet,
+                                  uint32_t descriptorSetCount,
+                                  const VkDescriptorSet* pDescriptorSets,
+                                  uint32_t dynamicOffsetCount,
+                                  const uint32_t* pDynamicOffsets);
 ```
 
 #### Critical Path Sequence (per draw call)
@@ -727,6 +742,6 @@ Project Synapse explicitly does NOT:
 
 1. **Replace the kernel-mode driver (KMD).** Synapse operates entirely in user space within the UMD. Kernel scheduler decisions, PCIe/memory controller arbitration, and interrupt handling are outside its scope.
 2. **Modify GPU firmware or microcode.** All co-design hardware suggestions (HAI RISC-V frontend, on-die ML inference core) are proposals for future hardware revisions, not current functionality.
-3. **Provide OpenGL / Vulkan 1.0 legacy path optimization.** Synapse hooks `vkCmdDrawIndexed` and `vkCmdDispatch` in the Vulkan 1.3+ command stream. Legacy API translation layers (DXVK, VKD3D) feed into Synapse naturally but are not Synapse's responsibility.
+3. **Provide OpenGL / Vulkan 1.0 legacy path optimization.** Synapse hooks `vkCmdDrawIndexed`, `vkCmdDraw`, `vkCmdDispatch`, `vkCmdPushConstants`, `vkCmdBindDescriptorSets`, `vkCreateImage`/`vkDestroyImage` in the Vulkan 1.3+ command stream. Legacy API translation layers (DXVK, VKD3D) feed into Synapse naturally but are not Synapse's responsibility.
 4. **Make game-engine-level LOD decisions.** Mip-cap during thermal mitigation is a hardware-level residency control, not a semantic LOD choice. The game engine's LOD system remains authoritative.
 5. **Guarantee performance on discrete GPUs.** Synapse is tuned for the shared-memory, bandwidth-constrained architecture of integrated graphics. Discrete GPU behavior is untested and unsupported.

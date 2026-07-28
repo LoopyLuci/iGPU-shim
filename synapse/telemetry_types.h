@@ -10,6 +10,7 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -138,6 +139,13 @@ struct PowerReport {
 // ----------------------------------------------------------------------------
 // Top-level session report — mirrors report.json schema v2.0.0
 // ----------------------------------------------------------------------------
+struct BackendRoutingSummary {
+    uint32_t jit_dispatches   = 0;
+    uint32_t hai_dispatches   = 0;
+    uint32_t oracle_dispatches = 0;
+    uint32_t total_draw_calls = 0;
+};
+
 struct SynapseSessionReport {
     std::string heuristic              = "temporal_locality_v1";
     uint32_t    temporal_window_frames = 3;
@@ -164,6 +172,9 @@ struct SynapseSessionReport {
     HAIStats        hai;
     ThermalStats    thermal;
     PowerReport     power;
+
+    // Backend routing summary — populated from handle_draw_*/handle_dispatch*
+    BackendRoutingSummary backend_routing;
 };
 
 } // namespace synapse::telemetry

@@ -49,8 +49,13 @@ iGPU_Shim/
 │   │   ├── test_ring_buffer.cpp    # TelemetryRingBuffer concurrency tests
 │   │   └── test_edge_cases.cpp     # Five "What if?" smoke tests
 │   └── tools/
+│       ├── synapse_cli.cpp         # CLI — train/explain/run-scenario subcommands
+│       ├── simulate_panning.cpp    # 200-frame ITS panning simulation harness
 │       ├── gen_panning_trace.py    # Generates synthetic 1000-frame ITS traces
 │       └── bench_critical_path.cpp # CPU cycle benchmark for handle_draw_indexed
+├── synapse/layer_entry.cpp   # Vulkan implicit layer entry points (vkGetInstanceProcAddr)
+├── VkLayer_synapse.json.in   # Layer manifest template — CMake configures the final JSON
+├── CMakeLists.txt            # Root build system (C++20, shared lib + tests + tools)
 ├── docs/
 │   └── getting_started.md    # ← You are here
 ├── report.json               # Telemetry baseline + schema v2.0.0
@@ -63,51 +68,80 @@ iGPU_Shim/
 
 ## 3. Prerequisites
 
-### Compiler
-- GCC 12+ or Clang 16+ with full C++20 support
-- `std::shared_mutex`, `std::atomic<std::shared_ptr<T>>`, `std::hardware_destructive_interference_size`
+| Requirement | Windows | Linux (Ubuntu 24.04) |
+|---|---|---|
+| Compiler | MSVC 19.x via **VS 2022 Build Tools** | `clang++-17` (`sudo apt install clang-17`) |
+| Build system | CMake ≥ 3.22 + NMake or Ninja | CMake ≥ 3.22 + Ninja |
+| Vulkan SDK | [LunarG VulkanSDK ≥ 1.3.296](https://vulkan.lunarg.com) | `libvulkan-dev`, `vulkan-validationlayers-dev` |
+| Python | Python 3.10+ (trace tools) | `python3` |
 
-### Optional Tools
-- **Thread Sanitizer (TSan):** `-fsanitize=thread` — required for concurrency test runs
-- **Doxygen 1.9+:** To generate HTML API reference from `///` comments
-- **Python 3.10+:** To run `tools/gen_panning_trace.py`
+### Automated setup
 
-### Environment Variables
+**Windows** (run in PowerShell as administrator):
+```powershell
+.\scripts\install_deps.ps1    # installs VS Build Tools, CMake, and Vulkan SDK via winget
+```
 
-| Variable | Effect |
-|----------|--------|
-| `SYNAPSE_PLATFORM_OVERRIDE=LPDDR4X` | Override memory type for energy model (also: `DDR5`) |
-| `SYNAPSE_POWER_VERIFY` (compile flag) | Enable PowerEstimator assertions in CI / lab builds |
+> **Important:** After installation, all build commands must be run from a
+> **Visual Studio 2022 x64 Developer Command Prompt** so that `cl.exe`,
+> `link.exe`, and `cmake.exe` are all on `PATH`. You can launch one via:
+> `"C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"`
+> or run `.\scripts\build_windows.ps1`.
+
+**Linux**:
+```bash
+chmod +x scripts/install_deps.sh && sudo ./scripts/install_deps.sh
+```
+
+### Optional tools
+- **Thread Sanitizer:** build with `-fsanitize=thread` — required for concurrency test runs
+- **Doxygen 1.9+:** `doxygen Doxyfile` to generate HTML API reference from `///` comments
 
 ---
 
-## 4. Building the Tests
+## 4. Building
 
-All tests live in `synapse/tests/`. They are standalone compilation units that `#include` relative paths from `synapse/`.
+> **All builds now use CMake.** The legacy standalone `g++` commands no longer
+> work because module interdependencies require the full library target.
 
-### Ring Buffer Concurrency Test
-```bash
-cd synapse/tests
-g++ -std=c++20 -fsanitize=thread -I.. test_ring_buffer.cpp -o test_ring_buffer
-./test_ring_buffer
+### Windows (x64 Developer Command Prompt)
+
+```cmd
+cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DSYNAPSE_STUB_DMA=ON
+cmake --build build --parallel
+cd build && ctest --output-on-failure
 ```
-Expected output: 5 `PASS` lines. Zero TSan warnings.
 
-### Edge-Case Smoke Tests
-```bash
-cd synapse/tests
-g++ -std=c++20 -I.. test_edge_cases.cpp -o test_edge_cases
-./test_edge_cases
-```
-Expected output: 5 `PASS` lines covering oracle fallback, JIT cold cache, sync stall, DVFS hysteresis, and thermal mitigation.
+### Linux (Clang 17)
 
-### CPU Cycle Benchmark
 ```bash
-cd synapse/tools
-g++ -std=c++20 -O2 -I.. bench_critical_path.cpp -o bench_critical_path
-./bench_critical_path 10000
+cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_COMPILER=clang++-17 \
+    -DSYNAPSE_STUB_DMA=ON
+cmake --build build --parallel
+cd build && ctest --output-on-failure
 ```
-Acceptance criteria checked automatically: p99 ≤ 1 µs, overhead < 20%. Exit code 0 = all pass.
+
+### CMake build flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `SYNAPSE_STUB_DMA` | `ON` | Synchronous DMA stub (testing without hardware) |
+| `SYNAPSE_REAL_FENCE` | `OFF` | Real KMD fence queries (requires DRM / DXGK headers) |
+| `SYNAPSE_POWER_VERIFY` | `OFF` | Power-budget assertions — CI lab use only, not for release |
+
+### Installing the Vulkan layer
+
+After building, `build/VkLayer_synapse.json` and `build/libSynapseLayer.so` (or
+`SynapseLayer.dll`) are co-located. Follow the instructions in
+[docs/getting_started.md (Install section)](#install-the-layer) or run:
+
+```bash
+sudo cmake --install build
+export SYNAPSE_ENABLE=1     # activates the implicit layer for all Vulkan apps
+vulkaninfo | grep SYNAPSE   # should show VK_LAYER_SYNAPSE_iGPU_Shim
+```
 
 ---
 

@@ -1,6 +1,6 @@
 # Project Synapse — Engineering Roadmap & Development Plan
 
-**Version:** 1.3.0  
+**Version:** 1.4.0  
 **Date:** March 5, 2026  
 **Program Manager:** Advanced Architecture Group  
 **Single-Sentence Goal:** Deliver a production-grade hybrid iGPU shim that demonstrably reduces driver CPU overhead and memory bandwidth consumption, verified against measurable acceptance criteria rooted in the existing `report.json` telemetry baseline.
@@ -19,6 +19,7 @@
 8. [Phase 6 — Verification, Profiling & Refinement (ACTIVE)](#phase-6--verification-profiling--refinement-active)
 9. [Phase 6B — ML Sub-API, Testing System & Live Telemetry (COMPLETE)](#phase-6b--ml-sub-api-testing-system--live-telemetry-complete)
 10. [Phase 7 — Hardware Co-Design Proposals (PLANNED)](#phase-7--hardware-co-design-proposals-planned)
+11. [Phase 8 — Native Hardware Integration (ACTIVE)](#phase-8--native-hardware-integration-active)
 10. [Open Risks & Mitigations](#open-risks--mitigations)
 11. [Acceptance Criteria Master Checklist](#acceptance-criteria-master-checklist)
 12. [Engineering Principles Applied](#engineering-principles-applied)
@@ -38,6 +39,7 @@
 | 6     | Verification, Profiling & Refinement| 🔄 Active  | QA + UMD Team            |
 | 6B    | ML Sub-API, Testing System & Live Telemetry | ✅ Complete | ML + UMD Team   |
 | 7     | Hardware Co-Design Proposals        | 📋 Planned | Architecture Group       |
+| 8     | Native Hardware Integration         | 🔄 Active   | Driver + Platform Team   |
 
 ---
 
@@ -372,6 +374,80 @@ Add an in-process contextual-bandit ML router to replace the rule-based `Schedul
 | `hardware_fence_completed()` real MMIO query | Medium | Stub returns `true` unconditionally |
 | Vulkan layer manifest (`.json`) + `vkGetInstanceProcAddr` export | Critical | Required for native hardware |
 | Build system: `CMakeLists.txt` (replaces scatter of `.vcxproj`) | High | Required for Linux CI |
+
+---
+
+## Phase 8 — Native Hardware Integration (ACTIVE)
+
+### Purpose
+Replace every documented stub with a real implementation or a hardened, explicitly-documented fallback codepath. The layer must load via the Vulkan implicit layer manifest on both Windows 11 and Ubuntu 24.04, and must compile cleanly with MSVC 19.x and Clang 17+.
+
+### Tier 0 — Compile & Layer Blockers (Resolved this phase)
+
+| Item | File | Status |
+|:-----|:-----|:-------|
+| `TextureObject` struct definition | `synapse/its_engine_hardened.h` | ✅ |
+| `Analyzer::get_mip_demand_probability()` | `synapse/synapse_umd.h` | ✅ |
+| `std::shared_mutex textures_mutex_` declaration | `synapse/its_engine_hardened.h` | ✅ |
+| Data races in `prepare_for_use()` / `get_safe_mip_level()` fixed with `shared_lock` | `synapse/its_engine_hardened.h` | ✅ |
+| `CMakeLists.txt` root build system (C++20, shared library, CTest, tools) | `CMakeLists.txt` | ✅ |
+| `VkLayer_synapse.json.in` layer manifest template | `VkLayer_synapse.json.in` | ✅ |
+| `synapse/layer_entry.cpp` — `vkGetInstanceProcAddr` / `vkGetDeviceProcAddr` exports | `synapse/layer_entry.cpp` | ✅ |
+| GitHub Actions CI fixed (`ilammy/msvc-dev-cmd@v1`, CMake builds) | `.github/workflows/ci.yml` | ✅ |
+
+### Tier 1 — Real Hardware Stubs (Hardened this phase)
+
+| Item | File | Status |
+|:-----|:-----|:-------|
+| `hardware_fence_completed()` — `SYNAPSE_REAL_FENCE` gating with platform TODOs | `synapse/its_engine_hardened.h` | ✅ |
+| `trigger_async_load()` — `SYNAPSE_STUB_DMA` gating with KMD TODO comments | `synapse/its_engine_hardened.h` | ✅ |
+| `submit_isa_to_gpu()` — documented stub with safe Oracle fallback | `synapse/synapse_core.h` | ✅ |
+| `capture_current_signature()` — reads `shader_hash` from per-cmd-buf state tracker | `synapse/synapse_core.h` | ✅ |
+| `get_bound_image()` — reads primary image from per-cmd-buf state tracker | `synapse/synapse_core.h` | ✅ |
+| `notify_bind_pipeline()` + `notify_bind_image()` layer hooks | `synapse/synapse_core.h` | ✅ |
+
+### Tier 2 — Telemetry & ML Correctness (Resolved this phase)
+
+| Item | File | Status |
+|:-----|:-----|:-------|
+| MLSubAPI trainer replay-pointer bug — local `snapshot_write` window | `synapse/ml/ml_sub_api.h` | ✅ |
+| `#include <array>` added to `telemetry_types.h` | `synapse/telemetry_types.h` | ✅ |
+| Replace `kSampleBase=1000` with `its_engine_.get_hits()/get_misses()` | `synapse/synapse_core.h` | ✅ |
+| `FeatureEncoder` f[4] linear DVFS expression (T2-5) | `synapse/ml/feature_encoder.h` | ✅ |
+| `AgentAPI::snapshot(SynapseCore*)` wired to live `build_session_report()` | `synapse/testing/agent_api.h` | ✅ |
+
+### Tier 3 — Build System & CI Completeness (Resolved this phase)
+
+| Item | File | Status |
+|:-----|:-----|:-------|
+| `.gitignore` (build artifacts, binaries, Python cache) | `.gitignore` | ✅ |
+| `docs/getting_started.md` updated for CMake build + Developer Command Prompt | `docs/getting_started.md` | ✅ |
+| `SYNAPSE_POWER_VERIFY` CI step in Ubuntu job | `.github/workflows/ci.yml` | ✅ |
+| `vkCmdBindPipeline` intercept → `notify_bind_pipeline()` (live shader_hash) | `synapse/layer_entry.cpp` | ✅ |
+| `vkFreeCommandBuffers` intercept → `notify_free_cmd_buf()` (map GC) | `synapse/layer_entry.cpp` | ✅ |
+| `Analyzer::get_mip_demand_probability()` Laplace-smoothed hit-rate | `synapse/synapse_umd.h` | ✅ |
+| `SYNAPSE_REAL_DMA` CMake flag scaffolding for T1-2 KMD slot-in | `CMakeLists.txt` + `its_engine_hardened.h` | ✅ |
+
+### Remaining Open Items (Phase 8 → Phase 9)
+
+| Item | Priority | Notes |
+|:-----|:---------|:------|
+| `hardware_fence_completed()` real KMD path on Linux (`sync_wait`) | High | TODO(T1-1) in `its_engine_hardened.h` |
+| `hardware_fence_completed()` real KMD path on Windows (`D3DKMTWait`) | High | TODO(T1-1) in `its_engine_hardened.h` |
+| `trigger_async_load()` real DMA via `drmIoctl` / `D3DKMTRender` | High | TODO(T1-2) — slot in under `SYNAPSE_REAL_DMA=ON` |
+| `submit_isa_to_gpu()` real path via `VK_EXT_shader_object` | Medium | TODO(T1-3) in `synapse_core.h` |
+| `vkCmdBindDescriptorSets` intercept → `notify_bind_image()` | Medium | Required for live ITS image tracking |
+| Wire real `ITSCacheController` LRU eviction tracking into `SynapseCore` | Medium | Currently engine uses own atomic counters |
+| `PowerEstimator::log_transaction()` called from ITS load/evict paths | High | Currently estimator sees no transactions |
+| Live data populated into `report.json` from `build_session_report()` | High | Currently placeholder values |
+
+### Acceptance Criteria for Phase 8
+
+- `cmake -B build && cmake --build build` succeeds with zero errors on Ubuntu 24.04 (Clang 17) and Windows 11 (MSVC 19)
+- `ctest --output-on-failure` passes all tests including `*_power_verify` variants
+- `vulkaninfo` shows `VK_LAYER_SYNAPSE_iGPU_Shim` in the instance layer list when `SYNAPSE_ENABLE=1` is set
+- No data races reported by ThreadSanitizer on `test_ring_buffer`
+- `simulate_panning` runs 200 frames and prints a non-zero `hit_rate`
 
 ---
 

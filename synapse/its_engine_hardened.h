@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <vector>
 #include <mutex>
+#include <shared_mutex>
 #include <chrono>
 
 namespace synapse {
@@ -18,6 +19,18 @@ struct MipResidencyState {
     std::atomic<bool> is_resident{false};
     std::atomic<uint64_t> dma_fence_id{0}; // Track async completion
     float current_priority{0.0f};          // Used for Hysteresis
+};
+
+// ---------------------------------------------------------------------------
+// TextureObject – per-VkImage residency record.
+// ---------------------------------------------------------------------------
+struct TextureObject {
+    uint64_t texture_id      = 0;
+    uint32_t width           = 0;
+    uint32_t height          = 0;
+    uint32_t mip_count       = 0;
+    uint64_t last_used_frame = 0;
+    std::vector<MipResidencyState> residency; ///< One entry per mip level
 };
 
 class TextureStreamingEngineHardened {
@@ -40,18 +53,18 @@ public:
             tex.residency[i].current_priority = 0.0f;
         }
 
-        std::lock_guard<std::mutex> lock(textures_mutex_);
+        std::unique_lock<std::shared_mutex> lock(textures_mutex_);
         textures_[image] = std::move(tex);
     }
 
     // Unregister a texture on vkDestroyImage
     void unregister_texture(VkImage image) {
-        std::lock_guard<std::mutex> lock(textures_mutex_);
+        std::unique_lock<std::shared_mutex> lock(textures_mutex_);
         textures_.erase(image);
     }
-    // ... previous registration logic ...
 
-    void prepare_for_use(VkImage image, uint64_t current_frame) {
+    void prepare_for_use(VkImage image, uint64_t /*current_frame*/) {
+        std::shared_lock<std::shared_mutex> lock(textures_mutex_);
         auto it = textures_.find(image);
         if (it == textures_.end()) return;
 
@@ -79,22 +92,37 @@ public:
         return static_cast<uint32_t>(fault_count_.exchange(0u, std::memory_order_acq_rel));
     }
 
-    // Defensive Check: Returns the highest mip-level that is SAFELY resident
+    // Defensive check: returns the highest mip-level that is safely resident.
+    // Acquires a shared lock so concurrent readers do not block each other on
+    // the hot path. Writes to the map always go through unique_lock callers.
     uint32_t get_safe_mip_level(VkImage image) {
-        auto& tex = textures_[image];
+        std::shared_lock<std::shared_mutex> lock(textures_mutex_);
+        auto it = textures_.find(image);
+        if (it == textures_.end()) {
+            // Image was not registered; record as fault and return mip 0.
+            cache_misses_.fetch_add(1u, std::memory_order_relaxed);
+            fault_count_.fetch_add(1u, std::memory_order_relaxed);
+            return 0;
+        }
+        const TextureObject& tex = it->second;
         for (uint32_t i = 0; i < tex.mip_count; ++i) {
-            // Check if DMA transfer is actually finished via Hardware Fence
-            if (tex.residency[i].is_resident && 
-                hardware_fence_completed(tex.residency[i].dma_fence_id)) {
+            // Check if DMA transfer is actually finished via hardware fence.
+            if (tex.residency[i].is_resident.load(std::memory_order_acquire) &&
+                hardware_fence_completed(
+                    tex.residency[i].dma_fence_id.load(std::memory_order_relaxed))) {
                 cache_hits_.fetch_add(1u, std::memory_order_relaxed);
                 return i;
             }
         }
-        // No resident mip was safe — record a miss/fault and return lowest-res mip
+        // No resident mip was safe — record a miss/fault and return lowest-res mip.
         cache_misses_.fetch_add(1u, std::memory_order_relaxed);
         fault_count_.fetch_add(1u, std::memory_order_relaxed);
-        return tex.mip_count - 1; // Fallback to lowest resolution
+        return tex.mip_count > 0 ? tex.mip_count - 1 : 0;
     }
+
+    // Expose raw counters for wiring into SynapseCore live_report.
+    uint64_t get_hits()   const { return cache_hits_.load(std::memory_order_relaxed); }
+    uint64_t get_misses() const { return cache_misses_.load(std::memory_order_relaxed); }
 
 private:
     void update_residency_with_hysteresis(TextureObject& tex, float demand) {
@@ -114,31 +142,94 @@ private:
         }
     }
 
-    bool hardware_fence_completed(uint64_t id) {
-        // Query the iGPU's DMA engine status register
-        return true; 
+    // -----------------------------------------------------------------------
+    // hardware_fence_completed
+    // Gate real fence queries behind SYNAPSE_REAL_FENCE so simulations and
+    // unit tests work without kernel headers. Both real paths degrade to the
+    // documented fallback (return true) until the MMIO plumbing is complete;
+    // they do NOT silently corrupt hardware state.
+    // -----------------------------------------------------------------------
+    bool hardware_fence_completed(uint64_t fence_id) noexcept {
+#if defined(SYNAPSE_REAL_FENCE) && defined(_WIN32)
+        // Windows path: D3DKMTWait for the fence signalled by the KMD.
+        // TODO(T1-1): #include <d3dkmthk.h>, call D3DKMTWaitForSynchronizationObject2.
+        // Documented fallback: return true while MMIO plumbing is in progress.
+        (void)fence_id;
+        return true;
+#elif defined(SYNAPSE_REAL_FENCE) && defined(__linux__)
+        // Linux path: sync_wait on the DRM fence fd stored in fence_id.
+        // TODO(T1-1): open fence fd = (int)fence_id, call sync_wait(fd, 0 /*timeout*/).
+        // Documented fallback: return true while DRM wiring is in progress.
+        (void)fence_id;
+        return true;
+#elif defined(SYNAPSE_REAL_FENCE)
+#  warning "SYNAPSE_REAL_FENCE is set but no platform fence implementation is available"
+        (void)fence_id;
+        return true;
+#else
+        // Simulation / unit-test path: synthetic fence IDs are always complete.
+        (void)fence_id;
+        return true;
+#endif
     }
 
-    // Minimal async load/evict helpers (synchronous simplification for testing).
+    // -----------------------------------------------------------------------
+    // trigger_async_load
+    // Real path (SYNAPSE_STUB_DMA undefined): enqueue KMD DMA transfer and
+    // record the returned fence id. Stub path: synchronous residency flip for
+    // simulation and unit tests.
+    // -----------------------------------------------------------------------
     void trigger_async_load(TextureObject& tex, uint32_t mip_level) {
-        // In production this would enqueue a DMA and set a fence id. For now
-        // mark resident and assign a synthetic fence id (non-zero) to indicate
-        // completion so `get_safe_mip_level()` can observe the resident state.
         auto& mr = tex.residency[mip_level];
+#if defined(SYNAPSE_REAL_DMA)
+        // Real KMD path — slot in the hardware DMA call here once plumbing is ready.
+        // TODO(T1-2): Enqueue DMA transfer via KMD ioctl (Linux drmIoctl) or
+        // D3DKMTRender (Windows). Record the fence id returned by the KMD into
+        // mr.dma_fence_id. Until MMIO plumbing is complete, document safe fallback:
         mr.dma_fence_id.store(1u, std::memory_order_relaxed);
         mr.is_resident.store(true, std::memory_order_release);
+        if (power_estimator_) {
+            // Estimate full mip size for this level and log as saved bandwidth
+            // once real DMA byte counts are available.
+            power_estimator_->log_transaction(tex.width * tex.height * 4, 0);
+        }
+#else
+        // Simulation / unit-test path (SYNAPSE_STUB_DMA or neither flag):
+        // mark resident synchronously with a synthetic fence id.
+        mr.dma_fence_id.store(1u, std::memory_order_relaxed);
+        mr.is_resident.store(true, std::memory_order_release);
+#endif
     }
 
     void trigger_async_eviction(TextureObject& tex, uint32_t mip_level) {
         auto& mr = tex.residency[mip_level];
         mr.is_resident.store(false, std::memory_order_release);
         mr.dma_fence_id.store(0u, std::memory_order_relaxed);
+        // Eviction frees bandwidth that was previously consumed — log it.
+        if (power_estimator_) {
+            power_estimator_->log_transaction(0, 0);
+        }
     }
 
-    // For test harnesses: allow external code to mark a DMA fence as completed
-    // and thereby flip a residency bit. Returns true if found and updated.
+    void trigger_async_eviction(TextureObject& tex, uint32_t mip_level) {
+        auto& mr = tex.residency[mip_level];
+        mr.is_resident.store(false, std::memory_order_release);
+        mr.dma_fence_id.store(0u, std::memory_order_relaxed);
+        // Eviction frees bandwidth that was previously consumed — log it.
+        if (power_estimator_) {
+            power_estimator_->log_transaction(0, 0);
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Power estimator injection — called by SynapseCore to wire
+    // bandwidth accounting through the ITS engine.
+    // -----------------------------------------------------------------
+    void set_power_estimator(synapse::metrics::PowerEstimator* estimator) {
+        power_estimator_ = estimator;
+    }
     bool mark_dma_complete(VkImage image, uint64_t fence_id, uint32_t mip_level) {
-        std::lock_guard<std::mutex> lock(textures_mutex_);
+        std::unique_lock<std::shared_mutex> lock(textures_mutex_);
         auto it = textures_.find(image);
         if (it == textures_.end()) return false;
         if (mip_level >= it->second.mip_count) return false;
@@ -156,7 +247,15 @@ private:
     std::atomic<uint32_t> fault_count_{0};
 
     // Texture registry (maps VkImage -> TextureObject)
+    // Protected by textures_mutex_: unique_lock for writes, shared_lock for reads.
+    std::shared_mutex textures_mutex_;
     std::unordered_map<VkImage, TextureObject> textures_;
+
+    // Back-reference to the Analyzer for demand-probability queries.
+    Analyzer& analyzer_;
+
+    // Power estimator — wired by SynapseCore at device creation.
+    synapse::metrics::PowerEstimator* power_estimator_ = nullptr;
 };
 
 } // namespace synapse

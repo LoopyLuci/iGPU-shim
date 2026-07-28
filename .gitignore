@@ -1,0 +1,82 @@
+# Project Synapse – .gitignore
+# Generated for Windows (MSVC) + Linux (Clang/GCC) C++ builds
+
+# ── Build output directories ────────────────────────────────────────────────
+build/
+build_*/
+obj/
+bin/
+out/
+_build/
+cmake-build-*/
+.cmake/
+
+# ── Compiled object files ───────────────────────────────────────────────────
+*.obj
+*.o
+*.a
+*.lib
+*.pch
+*.gch
+
+# ── Binaries & shared libraries ─────────────────────────────────────────────
+*.exe
+*.dll
+*.so
+*.so.*
+*.dylib
+*.pdb
+*.ilk
+*.exp
+
+# ── CMake-generated files ────────────────────────────────────────────────────
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
+
+# ── Generated layer manifest ─────────────────────────────────────────────────
+# (template VkLayer_synapse.json.in is tracked; built copy lives in build/)
+VkLayer_synapse.json
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# ── VS Code workspace settings (user-local, not project config) ─────────────
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/*.code-workspace
+
+# ── Visual Studio ────────────────────────────────────────────────────────────
+.vs/
+*.user
+*.aps
+*.ncb
+*.sdf
+*.suo
+*.opensdf
+*.vcxproj.filters
+*.vcxproj.user
+ipch/
+
+# ── Compiler diagnostics ─────────────────────────────────────────────────────
+*.sarif
+
+# ── Checkpoint / weights files ───────────────────────────────────────────────
+*.chk
+synapse_weights.bin
+
+# ── Logs & traces ────────────────────────────────────────────────────────────
+*.log
+*.trace

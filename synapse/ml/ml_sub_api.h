@@ -85,16 +85,18 @@ private:
     }
 
     void trainer_loop() {
+        // T2-1 fix: use a LOCAL replay window derived from replay_write_ only.
+        // We never advance the shared replay_read_ atomic, which prevents
+        // starving observe() of ring capacity on bursty workloads.
         while (running_.load(std::memory_order_acquire)) {
-            uint64_t r = replay_read_.load(std::memory_order_relaxed);
-            uint64_t w = replay_write_.load(std::memory_order_acquire);
-            while (r < w) {
-                const auto& e = replay_[r % kReplaySize];
-                // Replay update (may be noisy but strengthens learning)
+            const uint64_t w = replay_write_.load(std::memory_order_acquire);
+            // Replay at most the last kReplaySize entries without consuming them.
+            const uint64_t start = (w > kReplaySize) ? (w - kReplaySize) : 0;
+            for (uint64_t local_r = start; local_r < w; ++local_r) {
+                const auto& e = replay_[local_r % kReplaySize];
                 bandit_.observe(index_to_backend(e.action), e.reward, e.f);
-                r = replay_read_.fetch_add(1, std::memory_order_relaxed) + 1;
             }
-            // Sleep briefly to yield CPU — trainer is low priority
+            // Sleep briefly to yield CPU — trainer is low priority.
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
     }

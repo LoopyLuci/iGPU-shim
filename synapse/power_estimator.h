@@ -8,6 +8,7 @@
 // ============================================================================
 #pragma once
 #include "platform_config.h"   // pj_per_bit sourced from per-SKU config (Risk #3 fix)
+#include "telemetry_types.h"   // canonical PowerReport — single source of truth (DRY fix)
 #include <cassert>             // required by SYNAPSE_POWER_VERIFY assertions
 
 namespace synapse::metrics {
@@ -34,19 +35,18 @@ public:
         total_actual_energy_pj_ += overhead_nj * 1000.0; // nJ -> pJ
     }
 
-    /// @brief Result of a completed session's energy analysis.
-    struct PowerReport {
-        double joules_saved;                  ///< Absolute energy saved vs. unshimmed baseline (J).
-        double avg_milliwatts_saved_at_60fps; ///< Average power reduction at 60 FPS (mW).
-        double battery_extension_factor;      ///< E_saved / E_potential — proportion of theoretical maximum [0,1].
-    };
+    // PowerReport is the canonical synapse::telemetry::PowerReport struct from
+    // telemetry_types.h.  Bringing it into this namespace with a using-declaration
+    // keeps call sites that use PowerEstimator::PowerReport unchanged.
+    using PowerReport = synapse::telemetry::PowerReport;
 
+    /// @brief Compute the session energy savings report dynamically from logged data.
+    /// @return synapse::telemetry::PowerReport populated with computed values.
     PowerReport generate() const {
         double saved_pj = total_potential_energy_pj_ - total_actual_energy_pj_;
-        double saved_j  = saved_pj / 1e12; // Pico -> Joules
+        double saved_j  = saved_pj / 1e12; // pJ -> J
 
-        // 60 FPS = 1/60 s per frame.
-        // Power (W) = Energy (J) / Time (s)
+        // Power (W) = Energy (J) / Time (s); at 60 FPS each frame = 1/60 s.
         const double frame_time_s = 1.0 / 60.0;
         double mw_saved = (total_frames_ > 0)
             ? (saved_j / (total_frames_ * frame_time_s)) * 1000.0

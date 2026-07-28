@@ -18,4 +18,4 @@ Quick start (Linux):
 
 CI: The repository includes a GitHub Actions workflow that builds on `windows-latest` and `ubuntu-latest`.
 
-If you want a different automation shape (choco-only, or Docker-based reproducible environment), tell me which target and I will add that next.
+If you want a different automation shape (e.g. choco-only), let me know which target and I will add that next.

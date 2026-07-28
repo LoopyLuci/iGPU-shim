@@ -219,12 +219,13 @@ iGPU_Shim/
 
 ### What Synapse Does
 
-- Intercepts `vkCmdDrawIndexed` and `vkCmdDispatch` in the Vulkan UMD
+- Intercepts `vkCmdDrawIndexed`, `vkCmdDraw`, `vkCmdDispatch`, `vkCmdPushConstants`, and `vkCmdBindDescriptorSets` in the Vulkan UMD
+- Registers and unregisters textures via `vkCreateImage`/`vkDestroyImage` hooks for ITS tracking
 - Routes work to JIT, HAI, or Oracle based on live telemetry
 - Predicts texture residency needs and initiates DMA prefetch
 - Governs iGPU P-State transitions proactively and conservatively
 - Gracefully degrades under thermal stress without frame tears or hangs
-- Exports structured telemetry to `report.json`
+- Exports structured telemetry to `report.json` (including backend routing summary, power impact, and ITS hit/miss counters)
 
 ### What Synapse Does NOT Do
 
