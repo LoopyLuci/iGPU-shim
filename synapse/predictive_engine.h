@@ -13,7 +13,7 @@
 #include "descriptor_tracker.h"
 #include "its_cache_controller.h"
 #include "sync_manager.h"
-#include "hai_bytecode_builder.h"
+#include "synapse_hai_builder.h"
 
 namespace synapse::its {
 
@@ -100,11 +100,16 @@ public:
 
     PredictionStats get_stats() const { return stats_; }
 
+    void set_mip_cap(uint32_t level) { mip_cap_ = level; }
+    void clear_mip_cap() { mip_cap_ = 0; }
+    uint32_t get_mip_cap() const { return mip_cap_; }
+
 private:
     uint32_t temporal_window_;
     ITSCacheController& cache_controller_;
     sync::SyncManager& sync_manager_;
     builder::HAIBytecodeBuilder& builder_;
+    uint32_t mip_cap_ = 0;
 
     // Tracks resources that were prefetched to score accuracy (ResourceID -> Frame Prefetched)
     std::unordered_map<uint64_t, uint64_t> active_predictions_;

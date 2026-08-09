@@ -98,7 +98,7 @@ private:
     float epsilon_;
     float alpha_;
     std::mt19937 rng_;
-    std::mutex mu_;
+    mutable std::mutex mu_;
     std::atomic<bool> frozen_{false};
     std::atomic<uint64_t> updates_{0};
     std::atomic<float> cumulative_reward_{0.0f};

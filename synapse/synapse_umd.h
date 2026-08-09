@@ -10,6 +10,7 @@
 #include <optional>
 #include <span>
 #include <thread>
+#include <vector>
 #include <new>          // For std::hardware_destructive_interference_size
 #include <vulkan/vulkan.h> 
 
@@ -25,7 +26,7 @@ struct WorkloadSignature {
     uint32_t vertex_count;               
     uint32_t texture_bindings;            
     bool     is_compute_dispatch;        
-    uint64_t shader_hash = 0;           ///< FNV64 of bound pipeline shader paths; 0 = unknown
+    uint64_t shader_hash;           ///< FNV64 of bound pipeline shader paths; 0 = unknown
 };
 
 // Use standard cache line size to prevent false sharing between threads
@@ -142,11 +143,19 @@ private:
         }
 
         inferred_backend_.store(recommendation, std::memory_order_relaxed);
+        last_signature_ = sample;
     }
 
+public:
+    WorkloadSignature get_last_known_signature() const noexcept {
+        return last_signature_;
+    }
+
+private:
     TelemetryRingBuffer& telemetry_;
     std::atomic<ExecutionBackend> inferred_backend_{ExecutionBackend::Oracle};
     std::atomic<bool> running_{true};
+    WorkloadSignature last_signature_{};
     // ITS hit/miss counters fed by SynapseCore::handle_draw_indexed each frame.
     std::atomic<uint64_t> its_hits_{0};
     std::atomic<uint64_t> its_misses_{0};

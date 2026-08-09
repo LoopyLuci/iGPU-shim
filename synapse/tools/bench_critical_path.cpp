@@ -1,3 +1,7 @@
+// MSVC intrinsics for _ReadWriteBarrier
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
 // ============================================================================
 // synapse/tools/bench_critical_path.cpp
 // Project Synapse – CPU Cycle Benchmark: handle_draw_indexed() Critical Path
@@ -48,7 +52,11 @@ static void baseline_draw(VkCommandBuffer /*cmd*/, uint32_t /*indexCount*/,
     // Intentional no-op: represents the minimum possible driver dispatch time.
     // On a real driver this would make a kernel call; here we insert a compiler
     // barrier to prevent the call from being optimized away entirely.
+    #ifdef _MSC_VER
+    _ReadWriteBarrier();
+#else
     asm volatile("" ::: "memory");
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -88,7 +96,11 @@ struct SynapseCoreBenchStub {
 
         // Stage 4 — Execution routing (compiler barrier to prevent elision)
         if (jit_hit) {
-            asm volatile("" : "+r"(h) :: "memory");  // simulate ISA submit
+            #ifdef _MSC_VER
+            _ReadWriteBarrier();
+#else
+            asm volatile("" : "+r"(h) :: "memory");
+#endif  // simulate ISA submit
         } else {
             baseline_draw(nullptr, index_count, 1, 0, 0, 0); // Oracle fallback
         }

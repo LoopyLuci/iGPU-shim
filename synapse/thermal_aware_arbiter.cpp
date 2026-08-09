@@ -2,7 +2,15 @@
 // synapse/thermal_aware_arbiter.cpp
 // Project Synapse – Phase 5 Part B: Environmental Hardening
 // ============================================================================
-#include "platform_config.h"   // thermal threshold from SKU config (Risk #6 fix)
+#include "thermal_aware_arbiter.h"
+#include "platform_config.h"
+#include "pgro_smoothing_engine.h"
+#include "predictive_engine.h"
+
+using namespace synapse;
+
+PolicyArbiter::PolicyArbiter(SmoothingEngine& smoothing, its::PredictiveEngine& predictive)
+    : smoothing_engine_(smoothing), predictive_engine_(predictive) {}
 
 void PolicyArbiter::resolve_environmental_state(float thermal_headroom) {
     const float threshold = PlatformConfig::get().thermal_mitigation_threshold;

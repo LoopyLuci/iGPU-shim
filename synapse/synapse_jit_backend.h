@@ -38,6 +38,11 @@ public:
         return compile_specialized(shader_hash, spirv_source);
     }
 
+    // Placeholder: in production, compile SPIR-V to native ISA
+    std::vector<uint32_t> generate_isa(const std::vector<uint32_t>& source) {
+        return source; // Pass-through for now
+    }
+
 private:
     SpecializedShader* compile_specialized(uint64_t hash, const std::vector<uint32_t>& source) {
         // Defensive Programming: Validate source before processing

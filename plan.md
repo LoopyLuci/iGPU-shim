@@ -1,7 +1,7 @@
 # Project Synapse — Engineering Roadmap & Development Plan
 
-**Version:** 1.4.0  
-**Date:** March 5, 2026  
+**Version:** 1.5.0  
+**Date:** August 8, 2026  
 **Program Manager:** Advanced Architecture Group  
 **Single-Sentence Goal:** Deliver a production-grade hybrid iGPU shim that demonstrably reduces driver CPU overhead and memory bandwidth consumption, verified against measurable acceptance criteria rooted in the existing `report.json` telemetry baseline.
 
@@ -20,6 +20,11 @@
 9. [Phase 6B — ML Sub-API, Testing System & Live Telemetry (COMPLETE)](#phase-6b--ml-sub-api-testing-system--live-telemetry-complete)
 10. [Phase 7 — Hardware Co-Design Proposals (PLANNED)](#phase-7--hardware-co-design-proposals-planned)
 11. [Phase 8 — Native Hardware Integration (ACTIVE)](#phase-8--native-hardware-integration-active)
+12. [Phase 10 — Atomic Operations (COMPLETE)](#phase-10--atomic-operations-complete)
+13. [Phase 11 — Hot-Reload (COMPLETE)](#phase-11--hot-reload-complete)
+14. [Phase 12 — Crash Recovery (COMPLETE)](#phase-12--crash-recovery-complete)
+15. [Phase 13 — Personal-Use Optimization (COMPLETE)](#phase-13--personal-use-optimization-complete)
+16. [Phase 14 — Schema Versioning (COMPLETE)](#phase-14--schema-versioning-complete)
 10. [Open Risks & Mitigations](#open-risks--mitigations)
 11. [Acceptance Criteria Master Checklist](#acceptance-criteria-master-checklist)
 12. [Engineering Principles Applied](#engineering-principles-applied)
@@ -40,6 +45,11 @@
 | 6B    | ML Sub-API, Testing System & Live Telemetry | ✅ Complete | ML + UMD Team   |
 | 7     | Hardware Co-Design Proposals        | 📋 Planned | Architecture Group       |
 | 8     | Native Hardware Integration         | 🔄 Active   | Driver + Platform Team   |
+| 10    | Atomic Operations                   | ✅ Complete | Production Team          |
+| 11    | Hot-Reload                          | ✅ Complete | Production Team          |
+| 12    | Crash Recovery                      | ✅ Complete | Production Team          |
+| 13    | Personal-Use Optimization           | ✅ Complete | Production Team          |
+| 14    | Schema Versioning                   | ✅ Complete | Production Team          |
 
 ---
 

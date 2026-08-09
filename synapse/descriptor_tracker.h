@@ -27,6 +27,14 @@ struct ResourceFootprintStats {
 
 class DescriptorTracker {
 public:
+    // Resource metadata for tracking texture/buffer sizes
+    struct ResourceMeta {
+        bool is_texture = false;
+        uint64_t size_bytes = 0;
+        uint32_t mip_levels = 1;
+        uint32_t resident_mips = 0;
+    };
+
     // ... existing registration and binding methods ...
 
     /**
@@ -65,9 +73,24 @@ public:
      */
     ResourceFootprintStats get_final_stats() const { return stats_; }
 
+    /**
+     * @brief Returns metadata for a resource handle.
+     */
+    ResourceMeta get_metadata(uint64_t resource_handle) const {
+        auto it = registry_.find(resource_handle);
+        if (it != registry_.end()) return it->second;
+        return ResourceMeta{};
+    }
+
 private:
     ResourceFootprintStats stats_;
-    // ... existing registry and binding maps ...
+    
+    // Maps: cmd_buffer -> {slot -> set_handle}
+    std::unordered_map<uint64_t, std::unordered_map<uint32_t, uint64_t>> cmd_bindings_;
+    // Maps: set_handle -> {binding -> resource_handle}
+    std::unordered_map<uint64_t, std::unordered_map<uint32_t, uint64_t>> set_contents_;
+    // Maps: resource_handle -> metadata
+    std::unordered_map<uint64_t, ResourceMeta> registry_;
 };
 
 } // namespace synapse::replayer

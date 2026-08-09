@@ -1,0 +1,54 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "msvc-release",
+            "displayName": "MSVC Release (STUB_DMA)",
+            "generator": "NMake Makefiles",
+            "binaryDir": "${sourceDir}/build_stub",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_STANDARD": "20",
+                "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+                "SYNAPSE_STUB_DMA": "ON",
+                "SYNAPSE_POWER_VERIFY": "OFF",
+                "Vulkan_LIBRARY": "C:/Program Files (x86)/RivaTuner Statistics Server/SDK/Tools/DesktopOverlayHost/vk/Lib/vulkan-1.lib",
+                "VULKAN_SDK": "C:/Users/limpi/iGPU_Shim/vulkan_sdk"
+            }
+        },
+        {
+            "name": "msvc-debug",
+            "displayName": "MSVC Debug (STUB_DMA)",
+            "generator": "NMake Makefiles",
+            "binaryDir": "${sourceDir}/build_debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_STANDARD": "20",
+                "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+                "SYNAPSE_STUB_DMA": "ON",
+                "SYNAPSE_POWER_VERIFY": "OFF",
+                "Vulkan_LIBRARY": "C:/Program Files (x86)/RivaTuner Statistics Server/SDK/Tools/DesktopOverlayHost/vk/Lib/vulkan-1.lib",
+                "VULKAN_SDK": "C:/Users/limpi/iGPU_Shim/vulkan_sdk"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "msvc-release",
+            "configurePreset": "msvc-release"
+        },
+        {
+            "name": "msvc-debug",
+            "configurePreset": "msvc-debug"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "msvc-release",
+            "configurePreset": "msvc-release",
+            "output": {
+                "outputOnFailure": true
+            }
+        }
+    ]
+}

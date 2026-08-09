@@ -80,3 +80,9 @@ synapse_weights.bin
 # ── Logs & traces ────────────────────────────────────────────────────────────
 *.log
 *.trace
+
+# ── Scratch / temp test files ────────────────────────────────────────────────
+test_compile.bat
+test_header.bat
+test_header.cpp
+test_vulkan.cpp

@@ -47,6 +47,8 @@ inline uint32_t delta_draw_bytes(uint32_t dirty_word_count) noexcept {
 // ---------------------------------------------------------------------------
 namespace builder {
 
+enum class Priority { LOW, MEDIUM, HIGH, CRITICAL };
+
 class HAIBytecodeBuilder {
 public:
     // -----------------------------------------------------------------------
@@ -92,7 +94,11 @@ public:
     // -----------------------------------------------------------------------
     void write_delta_draw(const WorkloadSignature& sig,
                           uint32_t changed_mask = 0b11u /*index + count*/) {
+        #ifdef _MSC_VER
+        const uint32_t dirty_words = __popcnt(changed_mask);
+        #else
         const uint32_t dirty_words = __builtin_popcount(changed_mask);
+        #endif
         const uint32_t emitted     = delta_draw_bytes(dirty_words);
 
         HAIInstruction instr{};
@@ -123,6 +129,18 @@ public:
     /// HAIStats::compression_ratio() must be ≥ 4.0 for static-geometry workloads.
     // -----------------------------------------------------------------------
     const synapse::telemetry::HAIStats& get_hai_stats() const { return stats_; }
+
+    /// @brief Emit a prefetch hint for texture streaming prediction.
+    void emit_prefetch_hint(uint64_t resource_id, uint32_t target_mip, uint32_t total_mips) {
+        (void)resource_id; (void)target_mip; (void)total_mips;
+        // Placeholder: in production, emit a HAI instruction to the hardware
+    }
+
+    /// @brief Emit a scheduler hint for proactive DVFS ramping.
+    void emit_scheduler_hint(Priority priority, uint32_t expected_cycles) {
+        (void)priority; (void)expected_cycles;
+        // Placeholder: in production, emit SET_EXPECTED_LOAD opcode 0x50
+    }
 
 private:
     std::vector<HAIInstruction>   current_batch_;

@@ -1,20 +1,35 @@
-// ============================================================================\
+// ============================================================================
 // synapse/synapse_core.h
 // Project Synapse – Unified Driver Integration Hub
-// ============================================================================\
+//
+// Atomic operations, crash-safe telemetry, graceful degradation,
+// hot-reload, user profiling, and schema versioning wired in.
+// ============================================================================
 #pragma once
 
 #include "synapse_umd.h"
 #include "synapse_jit_backend.h"
 #include "synapse_hai_builder.h"
 #include "its_engine_hardened.h"
-#include "hash_utils.h"     // canonical workload_context_hash — DRY fix
-#include "telemetry_types.h"  // explicit: SynapseSessionReport used by build_session_report()
+#include "hash_utils.h"
+#include "telemetry_types.h"
 #include "ml/ml_sub_api.h"
 #include "ml/reward_calculator.h"
 #include "power_estimator.h"
+
+// Production modules
+#include "atomic/atomic_state.h"
+#include "atomic/atomic_config.h"
+#include "atomic/atomic_telemetry.h"
+#include "atomic/graceful_degradation.h"
+#include "recovery/crash_recovery.h"
+#include "personal/user_profile.h"
+#include "hotreload/config_watcher.h"
+#include "protocol/schema_migration.h"
+
 #include <chrono>
 #include <algorithm>
+#include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
@@ -23,133 +38,140 @@ namespace synapse {
 
 /**
  * @class SynapseCore
- * @brief The central coordinator for Project Synapse. 
- * * This class lives inside the UMD and intercepts Vulkan/D3D12 calls. 
- * It manages the lifecycle of the Analyzer thread and routes work between 
- * the Oracle (legacy), JIT (complex), and HAI (breadth) paths.
+ * @brief The central coordinator for Project Synapse.
+ *
+ * Production features:
+ *   - AtomicStateMachine for thread-safe state transitions
+ *   - AtomicTelemetry with WAL for crash-safe logging
+ *   - GracefulDegradation for automatic feature fallback
+ *   - AtomicConfig for hot-reloadable configuration
+ *   - UserProfile for personal-use optimization
+ *   - ConfigWatcher for live config file monitoring
+ *   - SchemaMigration for versioned data formats
  */
 class SynapseCore {
 public:
-    SynapseCore(PFN_vkCmdDrawIndexed orig_draw,
-                    PFN_vkCmdDraw orig_draw_non_indexed,
-                    PFN_vkCmdDispatch orig_dispatch,
-                    PFN_vkCmdPushConstants orig_push_constants,
-                    PFN_vkCmdBindDescriptorSets orig_bind_desc_sets,
-                    PFN_vkCmdBindShadersEXT orig_bind_shaders);
+    // JIT stutter telemetry
+    struct JITStutterStats {
+        uint32_t cold_cache_fallbacks = 0;
+        double   worst_fallback_ms    = 0.0;
+        double   total_fallback_ms    = 0.0;
+        static constexpr double kBudgetMs = 2.0;
+        bool is_over_budget() const { return worst_fallback_ms > kBudgetMs; }
+    };
+
+    // Construct with data directory for WAL/recovery
+    explicit SynapseCore(
+        PFN_vkCmdDrawIndexed orig_draw,
+        PFN_vkCmdDraw orig_draw_non_indexed,
+        PFN_vkCmdDispatch orig_dispatch,
+        PFN_vkCmdPushConstants orig_push_constants,
+        PFN_vkCmdBindDescriptorSets orig_bind_desc_sets,
+        PFN_vkCmdBindShadersEXT orig_bind_shaders,
+        const std::string& data_dir = ".");
+
     ~SynapseCore();
 
-    /// @brief Assembles a point-in-time session report from all live subsystems.
-    ///        Used by AgentAPI::snapshot() and the CLI `snapshot` subcommand.
-    synapse::telemetry::SynapseSessionReport build_session_report() const;
+    // ------------------------------------------------------------------
+    // Recovery
+    // ------------------------------------------------------------------
+    struct RecoveryInfo {
+        bool crash_detected{false};
+        uint64_t entries_recovered{0};
+        uint64_t recovery_count{0};
+    };
+    RecoveryInfo check_and_recover();
 
-    /// @brief Returns JIT cold-cache stutter telemetry for reporting.
+    // ------------------------------------------------------------------
+    // Session report
+    // ------------------------------------------------------------------
+    synapse::telemetry::SynapseSessionReport build_session_report() const;
     const JITStutterStats& jit_stutter_stats() const { return jit_stats_; }
 
-    /// @brief Wire the ITS engine's power estimator for bandwidth accounting.
-    /// Called once after device creation.
+    // ------------------------------------------------------------------
+    // Power estimator
+    // ------------------------------------------------------------------
     void wire_power_estimator(synapse::metrics::PowerEstimator* estimator) {
         its_engine_.set_power_estimator(estimator);
     }
+    synapse::metrics::PowerEstimator* power_estimator() { return &power_estimator_; }
 
-    /// @brief Accessor for power estimator (used by layer_entry.cpp wiring).
-    synapse::metrics::PowerEstimator* power_estimator() {
-        return &power_estimator_;
+    // ------------------------------------------------------------------
+    // Production module accessors
+    // ------------------------------------------------------------------
+    synapse::atomic::AtomicStateMachine& state_machine()    { return state_; }
+    synapse::atomic::AtomicConfig&       config()           { return config_; }
+    synapse::atomic::GracefulDegradation& degradation()     { return degrade_; }
+    synapse::personal::UserProfile&       user_profile()    { return user_profile_; }
+    recovery::CrashRecoveryManager*       recovery()        { return recovery_.get(); }
+    synapse::hotreload::ConfigWatcher*    config_watcher()  { return config_watcher_.get(); }
+
+    // Feature availability check (degradation-aware)
+    bool is_feature_available(const std::string& feature) const {
+        return degrade_.is_available(feature);
     }
 
-    /// @brief Record the most-recently-bound pipeline for @p cmd.
-    /// @param shader_hash  FNV64 hash of the pipeline's shader stage path names.
-    void notify_bind_pipeline(VkCommandBuffer cmd,
-                                  VkPipeline      pipeline,
-                                  uint64_t        shader_hash);
+    // ------------------------------------------------------------------
+    // Config synchronization: UserProfile → AtomicConfig
+    // Call after apply_preset() or update_usage() to propagate to config_.
+    // ------------------------------------------------------------------
+    void sync_config_from_profile();
 
-    /// @brief Record the primary sampled image for @p cmd (slot 0 of set 0).
+    // ------------------------------------------------------------------
+    // Runtime profile switching (applies preset + syncs config)
+    // ------------------------------------------------------------------
+    void apply_preset(const char* name);
+
+    // ------------------------------------------------------------------
+    // Data directory accessor (for profile persistence)
+    // ------------------------------------------------------------------
+    const std::string& data_dir() const { return data_dir_; }
+
+    // ------------------------------------------------------------------
+    // Notification hooks (layer_entry.cpp calls these)
+    // ------------------------------------------------------------------
+    void notify_bind_pipeline(VkCommandBuffer cmd, VkPipeline pipeline,
+                                  uint64_t shader_hash);
     void notify_bind_image(VkCommandBuffer cmd, VkImage image);
-
-    /// @brief Record a bound descriptor set for @p cmd — enables per-set texture tracking.
     void notify_bind_descriptor_set(VkCommandBuffer cmd, uint32_t set_index,
                                          const VkDescriptorSet& descriptor_set);
-
-    /// @brief Register a texture image with the ITS engine when vkCreateImage is observed.
     void notify_create_image(VkImage image, const VkImageCreateInfo* create_info,
                                   uint64_t texture_id);
-
-    /// @brief Unregister a texture image with the ITS engine when vkDestroyImage is observed.
     void notify_destroy_image(VkImage image);
-
-    /// @brief Free tracking state when the command buffer is destroyed.
     void notify_free_cmd_buf(VkCommandBuffer cmd);
-
-    /// @brief Called by Vulkan layer when vkCmdBindPipeline is intercepted.
-    ///        Forwards to the per-cmd-buf state tracker.
     void notify_bind_pipeline(VkCommandBuffer cmd, VkPipeline pipeline) {
         notify_bind_pipeline(cmd, pipeline,
             static_cast<uint64_t>(reinterpret_cast<uintptr_t>(pipeline)));
     }
 
-    // -------------------------------------------------------------------
-    // Main interception entry points — called by layer_entry.cpp
-    // All follow the same pattern: capture signature, route to backend.
-    // -------------------------------------------------------------------
-
-    /// @brief Intercept vkCmdDrawIndexed — route to JIT / HAI / Oracle.
+    // ------------------------------------------------------------------
+    // Main interception entry points
+    // ------------------------------------------------------------------
     void handle_draw_indexed(
-        VkCommandBuffer cmd,
-        uint32_t indexCount,
-        uint32_t instanceCount,
-        uint32_t firstIndex,
-        int32_t  vertexOffset = 0,
-        uint32_t firstInstance = 0);
+        VkCommandBuffer cmd, uint32_t indexCount, uint32_t instanceCount,
+        uint32_t firstIndex, int32_t vertexOffset = 0, uint32_t firstInstance = 0);
 
-    /// @brief Intercept vkCmdDraw — non-indexed variant.
     void handle_draw(
-        VkCommandBuffer cmd,
-        uint32_t vertexCount,
-        uint32_t instanceCount,
-        uint32_t firstVertex,
-        uint32_t firstInstance);
+        VkCommandBuffer cmd, uint32_t vertexCount, uint32_t instanceCount,
+        uint32_t firstVertex, uint32_t firstInstance);
 
-    /// @brief Intercept vkCmdDispatch — compute dispatch variant.
     void handle_dispatch(
-        VkCommandBuffer cmd,
-        uint32_t groupCountX,
-        uint32_t groupCountY,
+        VkCommandBuffer cmd, uint32_t groupCountX, uint32_t groupCountY,
         uint32_t groupCountZ);
 
-    /// @brief Intercept vkCmdPushConstants — feeds the PushConstantOptimizer.
     void handle_push_constants(
-        VkCommandBuffer cmd,
-        VkPipelineLayout layout,
-        uint32_t        offset,
-        uint32_t        size,
-        const void*     pValues);
+        VkCommandBuffer cmd, VkPipelineLayout layout,
+        VkShaderStageFlags stageFlags, uint32_t offset,
+        uint32_t size, const void* pValues);
 
-    /// @brief Intercept vkCmdBindDescriptorSets — enables per-set texture tracking.
     void handle_bind_descriptor_sets(
-        VkCommandBuffer                    cmd,
-        VkPipelineBindPoint                bindPoint,
-        VkPipelineLayout                   layout,
-        uint32_t                           firstSet,
-        uint32_t                           descriptorSetCount,
-        const VkDescriptorSet*             pDescriptorSets,
-        uint32_t                           dynamicOffsetCount,
-        const uint32_t*                    pDynamicOffsets);
-
-    // ----------------------------------------------------------------------
-    // JIT stutter telemetry – tracks Oracle fallback duration on cache miss
-    // ----------------------------------------------------------------------
-    struct JITStutterStats {
-        uint32_t cold_cache_fallbacks = 0;   // Times JIT returned nullptr
-        double   worst_fallback_ms    = 0.0; // Longest single Oracle fallback (ms)
-        double   total_fallback_ms    = 0.0; // Cumulative time in Oracle fallback
-        static constexpr double kBudgetMs = 2.0; // Acceptable stutter budget
-
-        bool is_over_budget() const { return worst_fallback_ms > kBudgetMs; }
-    };
+        VkCommandBuffer cmd, VkPipelineBindPoint bindPoint,
+        VkPipelineLayout layout, uint32_t firstSet,
+        uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets,
+        uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets);
 
 private:
-    // ------------------------------------------------------------------
-    // Backends
-    // ------------------------------------------------------------------
+    // Backend execution
     void execute_jit_path(VkCommandBuffer cmd, const WorkloadSignature& sig);
     void execute_hai_path(VkCommandBuffer cmd, const WorkloadSignature& sig);
     void execute_oracle_draw(VkCommandBuffer cmd, const WorkloadSignature& sig,
@@ -157,31 +179,33 @@ private:
                                  uint32_t firstIndex, int32_t vertexOffset,
                                  uint32_t firstInstance);
 
-    // ------------------------------------------------------------------
     // Helpers
-    // ------------------------------------------------------------------
     bool can_delta_update(const WorkloadSignature& sig) const;
     VkImage get_bound_image(VkCommandBuffer cmd);
     WorkloadSignature capture_current_signature(VkCommandBuffer cmd, uint32_t count);
     void increment_backend_counter(ExecutionBackend backend);
+    void submit_isa_to_gpu(VkCommandBuffer cmd, const std::vector<uint32_t>& isa);
+
+    // WAL write helper — logs event to crash-safe telemetry
+    void wal_log(atomic::WALEventType type, const void* data = nullptr, uint32_t size = 0);
+
+    // Start config file watcher (called from constructor)
+    void start_config_watcher();
+
+    // Parse a TOML-like config file content and apply to config_
+    void apply_config_content(const std::string& content);
 
     // ------------------------------------------------------------------
-    // Hardware interface stubs — T1-3/T1-4/T1-5
-    // ------------------------------------------------------------------
-    void submit_isa_to_gpu(VkCommandBuffer /*cmd*/,
-                                const std::vector<uint32_t>& /*isa*/);
-
-    // ------------------------------------------------------------------
-    // Per-command-buffer pipeline/image state
+    // Per-command-buffer state
     // ------------------------------------------------------------------
     struct CmdBufState {
         VkPipeline              bound_pipeline = VK_NULL_HANDLE;
-        VkImage                 bound_image    = VK_NULL_HANDLE; ///< primary sampled slot (set 0, binding 0)
-        uint64_t                shader_hash    = 0;              ///< FNV64 of pipeline shader paths
-        std::array<VkDescriptorSet, 4> descriptor_sets{};       ///< bound descriptor sets
+        VkImage                 bound_image    = VK_NULL_HANDLE;
+        uint64_t                shader_hash    = 0;
+        std::array<VkDescriptorSet, 4> descriptor_sets{};
     };
 
-    // Original Dispatch Table
+    // Original dispatch table
     PFN_vkCmdDrawIndexed orig_draw_indexed_;
     PFN_vkCmdDraw        orig_draw_         = nullptr;
     PFN_vkCmdDispatch    orig_dispatch_     = nullptr;
@@ -192,12 +216,12 @@ private:
     // JIT stutter telemetry
     JITStutterStats jit_stats_;
 
-    // Backend routing counters for report.json
+    // Backend routing counters
     uint32_t backend_jit_count_    = 0;
     uint32_t backend_hai_count_    = 0;
     uint32_t backend_oracle_count_ = 0;
 
-    // Per-command-buffer pipeline/image state
+    // Per-command-buffer state
     std::unordered_map<VkCommandBuffer, CmdBufState> cmd_state_;
     std::shared_mutex cmd_state_mutex_;
 
@@ -206,16 +230,25 @@ private:
     synapse::ml::RewardCalculator  reward_calc_;
     synapse::metrics::PowerEstimator power_estimator_;
 
-    // Synapse Sub-Modules
+    // Synapse sub-modules
     TelemetryRingBuffer             telemetry_;
     Analyzer                        analyzer_;
     Scheduler                       scheduler_;
     JITPipeline                     jit_pipeline_;
-    HAIBytecodeBuilder              hai_builder_;
+    builder::HAIBytecodeBuilder     hai_builder_;
     TextureStreamingEngineHardened  its_engine_;
 
     std::thread  analyzer_thread_;
     uint64_t     current_frame_ = 0;
+
+    // ── Production modules ──────────────────────────────────────────
+    synapse::atomic::AtomicStateMachine    state_;
+    synapse::atomic::AtomicConfig          config_;
+    synapse::atomic::GracefulDegradation   degrade_;
+    synapse::personal::UserProfile         user_profile_;
+    std::unique_ptr<recovery::CrashRecoveryManager> recovery_;
+    std::unique_ptr<hotreload::ConfigWatcher> config_watcher_;
+    std::string data_dir_;
 };
 
 } // namespace synapse

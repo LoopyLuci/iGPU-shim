@@ -7,6 +7,7 @@
 // top-level SynapseSessionReport so they populate report.json at session end.
 // ============================================================================
 #include "telemetry_types.h"   // HorizonStats, SynapseSessionReport
+#include "synapse_umd.h"       // WorkloadSignature
 
 #include <algorithm>
 #include <vector>

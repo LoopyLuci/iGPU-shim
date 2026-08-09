@@ -76,7 +76,11 @@ private:
         metrics.delta_updates_processed++;
         
         // Count bits set in mask to determine payload length
+        #ifdef _MSC_VER
+        int fields_to_update = __popcnt(mask);
+        #else
         int fields_to_update = __builtin_popcount(mask);
+        #endif
         size_t payload_size = fields_to_update * 4;
         
         // Simulation: Merging fields into Shadow State

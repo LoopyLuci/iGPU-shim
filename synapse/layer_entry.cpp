@@ -1,4 +1,4 @@
-// ============================================================================\
+// ============================================================================
 // synapse/layer_entry.cpp
 // Project Synapse – Vulkan Implicit Layer Entry Points
 //
@@ -12,14 +12,21 @@
 // command passes through the ML-guided backend selector.
 //
 // See VkLayer_synapse.json.in for the loader manifest.
-// ============================================================================\
+// ============================================================================
 #include "synapse_core.h"
 
 #include <vulkan/vk_layer.h>   // VkLayerInstanceCreateInfo, VK_LAYER_LINK_INFO
 #include <vulkan/vulkan.h>
+#include <filesystem>
+#include <fstream>
 
 #include <cstring>
 #include <memory>
+#ifdef _WIN32
+#define SYNAPSE_EXPORT __declspec(dllexport)
+#else
+#define SYNAPSE_EXPORT
+#endif
 #include <mutex>
 #include <unordered_map>
 
@@ -195,11 +202,47 @@ VKAPI_ATTR VkResult VKAPI_CALL SynapseLayer_vkCreateDevice(
     ctx.orig_create_image      = orig_create_image;
     ctx.orig_destroy_image     = orig_destroy_image;
     // SynapseCore owns the ML pipeline and hooks the draw path.
+    // Priority: SYNAPSE_DATA_DIR > LOCALAPPDATA/HOME > "."
+    std::string data_dir = ".";
+    const char* override_dir = std::getenv("SYNAPSE_DATA_DIR");
+    if (override_dir && override_dir[0] != '\0') {
+        data_dir = override_dir;
+    } else {
+#ifdef _WIN32
+        const char* appdata = std::getenv("LOCALAPPDATA");
+        if (appdata) data_dir = std::string(appdata) + "\\SynapseLayer";
+#else
+        const char* home = std::getenv("HOME");
+        if (home) data_dir = std::string(home) + "/.synapse";
+#endif
+    }
+
     ctx.core = std::make_unique<synapse::SynapseCore>(
         orig_draw, orig_draw_non_indexed, orig_dispatch,
-        orig_push_constants, orig_bind_desc_sets, orig_bind_shaders);
+        orig_push_constants, orig_bind_desc_sets, orig_bind_shaders,
+        data_dir);
+
+    // Check for crash recovery from previous session
+    auto recovery_info = ctx.core->check_and_recover();
+    if (recovery_info.crash_detected) {
+        // Log recovery event — the shim recovered automatically
+        // No user action needed; continue with degraded telemetry
+    }
+
+    // Load persisted user profile if available
+    {
+        auto profile_path = std::filesystem::path(data_dir) / "user_profile.dat";
+        std::ifstream ifs(profile_path, std::ios::binary);
+        if (ifs) {
+            synapse::personal::UserProfile::ProfileData data{};
+            ifs.read(reinterpret_cast<char*>(&data), sizeof(data));
+            ctx.core->user_profile().import_profile(data);
+            ctx.core->sync_config_from_profile();
+        }
+    }
+
     // Wire the ITS engine's power estimator so bandwidth accounting works.
-    ctx.core->wire_power_estimator(&ctx.core->power_estimator());
+    ctx.core->wire_power_estimator(ctx.core->power_estimator());
     return VK_SUCCESS;
 }
 
@@ -214,6 +257,15 @@ VKAPI_ATTR void VKAPI_CALL SynapseLayer_vkDestroyDevice(
         std::lock_guard<std::mutex> lock(g_device_mutex);
         auto it = g_devices.find(key);
         if (it != g_devices.end()) {
+            // Persist user profile before destroying SynapseCore
+            if (it->second.core) {
+                auto profile_data = it->second.core->user_profile().export_profile();
+                auto profile_path = std::filesystem::path(it->second.core->data_dir()) / "user_profile.dat";
+                std::ofstream ofs(profile_path, std::ios::binary);
+                if (ofs) {
+                    ofs.write(reinterpret_cast<const char*>(&profile_data), sizeof(profile_data));
+                }
+            }
             orig = reinterpret_cast<PFN_vkDestroyDevice>(
                 it->second.next_gdpa(device, "vkDestroyDevice"));
             g_devices.erase(it);
@@ -318,6 +370,7 @@ VKAPI_ATTR void VKAPI_CALL SynapseLayer_vkCmdDispatch(
 VKAPI_ATTR void VKAPI_CALL SynapseLayer_vkCmdPushConstants(
     VkCommandBuffer commandBuffer,
     VkPipelineLayout layout,
+    VkShaderStageFlags stageFlags,
     uint32_t        offset,
     uint32_t        size,
     const void*     pValues)
@@ -334,10 +387,10 @@ VKAPI_ATTR void VKAPI_CALL SynapseLayer_vkCmdPushConstants(
         }
     }
     if (core) {
-        core->handle_push_constants(commandBuffer, layout, offset, size, pValues);
+        core->handle_push_constants(commandBuffer, layout, stageFlags, offset, size, pValues);
     }
     if (fallback) {
-        fallback(commandBuffer, layout, offset, size, pValues);
+        fallback(commandBuffer, layout, stageFlags, offset, size, pValues);
     }
 }
 
@@ -514,7 +567,7 @@ VKAPI_ATTR void VKAPI_CALL SynapseLayer_vkFreeCommandBuffers(
 }
 
 // ── vkGetDeviceProcAddr ───────────────────────────────────────────────────────
-VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL SynapseLayer_vkGetDeviceProcAddr(
+SYNAPSE_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL SynapseLayer_vkGetDeviceProcAddr(
     VkDevice    device,
     const char* pName)
 {
@@ -538,7 +591,8 @@ VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL SynapseLayer_vkGetDeviceProcAddr(
 // with C linkage so the Vulkan loader can find it by name.
 extern "C" {
 
-VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL SynapseLayer_vkGetInstanceProcAddr(
+
+SYNAPSE_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL SynapseLayer_vkGetInstanceProcAddr(
     VkInstance  instance,
     const char* pName)
 {

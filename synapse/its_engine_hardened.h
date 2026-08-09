@@ -5,6 +5,7 @@
 #pragma once
 
 #include "synapse_umd.h"
+#include "power_estimator.h"
 #include <atomic>
 #include <cstdint>
 #include <unordered_map>
@@ -16,6 +17,11 @@
 namespace synapse {
 
 struct MipResidencyState {
+    MipResidencyState() = default;
+    MipResidencyState(MipResidencyState&&) = default;
+    MipResidencyState& operator=(MipResidencyState&&) = default;
+    MipResidencyState(const MipResidencyState&) = delete;
+    MipResidencyState& operator=(const MipResidencyState&) = delete;
     std::atomic<bool> is_resident{false};
     std::atomic<uint64_t> dma_fence_id{0}; // Track async completion
     float current_priority{0.0f};          // Used for Hysteresis
@@ -25,12 +31,17 @@ struct MipResidencyState {
 // TextureObject – per-VkImage residency record.
 // ---------------------------------------------------------------------------
 struct TextureObject {
+    TextureObject() = default;
+    TextureObject(TextureObject&&) = default;
+    TextureObject& operator=(TextureObject&&) = default;
+    TextureObject(const TextureObject&) = delete;
+    TextureObject& operator=(const TextureObject&) = delete;
     uint64_t texture_id      = 0;
     uint32_t width           = 0;
     uint32_t height          = 0;
     uint32_t mip_count       = 0;
     uint64_t last_used_frame = 0;
-    std::vector<MipResidencyState> residency; ///< One entry per mip level
+    std::unique_ptr<MipResidencyState[]> residency; ///< One entry per mip level
 };
 
 class TextureStreamingEngineHardened {
@@ -46,7 +57,7 @@ public:
         tex.mip_count = createInfo->mipLevels;
         tex.last_used_frame = 0;
 
-        tex.residency.resize(tex.mip_count);
+        tex.residency = std::make_unique<MipResidencyState[]>(tex.mip_count);
         for (uint32_t i = 0; i < tex.mip_count; ++i) {
             tex.residency[i].is_resident.store(false, std::memory_order_relaxed);
             tex.residency[i].dma_fence_id.store(0, std::memory_order_relaxed);
@@ -211,16 +222,7 @@ private:
         }
     }
 
-    void trigger_async_eviction(TextureObject& tex, uint32_t mip_level) {
-        auto& mr = tex.residency[mip_level];
-        mr.is_resident.store(false, std::memory_order_release);
-        mr.dma_fence_id.store(0u, std::memory_order_relaxed);
-        // Eviction frees bandwidth that was previously consumed — log it.
-        if (power_estimator_) {
-            power_estimator_->log_transaction(0, 0);
-        }
-    }
-
+public:
     // -----------------------------------------------------------------
     // Power estimator injection — called by SynapseCore to wire
     // bandwidth accounting through the ITS engine.
@@ -228,6 +230,7 @@ private:
     void set_power_estimator(synapse::metrics::PowerEstimator* estimator) {
         power_estimator_ = estimator;
     }
+
     bool mark_dma_complete(VkImage image, uint64_t fence_id, uint32_t mip_level) {
         std::unique_lock<std::shared_mutex> lock(textures_mutex_);
         auto it = textures_.find(image);
@@ -239,6 +242,7 @@ private:
         return true;
     }
 
+private:
     // -----------------------------------------------------------------
     // Internal telemetry counters
     // -----------------------------------------------------------------
