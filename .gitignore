@@ -86,3 +86,4 @@ test_compile.bat
 test_header.bat
 test_header.cpp
 test_vulkan.cpp
+compile_commands.json

@@ -30,6 +30,23 @@
                 "Vulkan_LIBRARY": "C:/Program Files (x86)/RivaTuner Statistics Server/SDK/Tools/DesktopOverlayHost/vk/Lib/vulkan-1.lib",
                 "VULKAN_SDK": "C:/Users/limpi/iGPU_Shim/vulkan_sdk"
             }
+        },
+        {
+            "name": "clangd",
+            "displayName": "Ninja + clangd (compile_commands.json)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build_clangd",
+            "toolchainFile": "${sourceDir}/cmake/toolchain-msvc.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_STANDARD": "20",
+                "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "SYNAPSE_STUB_DMA": "ON",
+                "SYNAPSE_POWER_VERIFY": "OFF",
+                "Vulkan_LIBRARY": "C:/Program Files (x86)/RivaTuner Statistics Server/SDK/Tools/DesktopOverlayHost/vk/Lib/vulkan-1.lib",
+                "VULKAN_SDK": "C:/Users/limpi/iGPU_Shim/vulkan_sdk"
+            }
         }
     ],
     "buildPresets": [
@@ -40,6 +57,10 @@
         {
             "name": "msvc-debug",
             "configurePreset": "msvc-debug"
+        },
+        {
+            "name": "clangd",
+            "configurePreset": "clangd"
         }
     ],
     "testPresets": [
