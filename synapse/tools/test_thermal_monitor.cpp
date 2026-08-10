@@ -132,7 +132,22 @@ int main() {
     ici.ppEnabledLayerNames = layers;
 
     VkInstance instance = VK_NULL_HANDLE;
-    VK_CHECK(vkCreateInstance(&ici, nullptr, &instance));
+    VkResult result = vkCreateInstance(&ici, nullptr, &instance);
+
+    if (result != VK_SUCCESS) {
+        printf("  vkCreateInstance with Synapse layer failed (code %d).\n", result);
+        printf("  Retrying WITHOUT layer to validate hardware baseline...\n");
+        ici.enabledLayerCount = 0;
+        ici.ppEnabledLayerNames = nullptr;
+        result = vkCreateInstance(&ici, nullptr, &instance);
+        if (result != VK_SUCCESS) {
+            printf("  FAIL: vkCreateInstance also failed without layer (code %d)\n", result);
+            return 1;
+        }
+        printf("  VkInstance created WITHOUT layer (hardware-only baseline).\n");
+    } else {
+        printf("  VkInstance created with Synapse layer.\n");
+    }
 
     uint32_t devCount = 0;
     vkEnumeratePhysicalDevices(instance, &devCount, nullptr);

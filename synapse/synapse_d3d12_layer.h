@@ -10,10 +10,24 @@
 #ifndef SYNAPSE_D3D12_LAYER_H
 #define SYNAPSE_D3D12_LAYER_H
 
-#include <unknwn.h>
 #include <cstdint>
-#include <unordered_map>
 #include <mutex>
+#include <unordered_map>
+
+#if defined(_WIN32)
+# ifndef _HRESULT_DEFINED
+typedef long HRESULT;
+#  define S_OK        ((HRESULT)0L)
+#  define E_FAIL      ((HRESULT)1L)
+#  define E_NOTIMPL   ((HRESULT)0x80004001L)
+#  define E_INVALIDARG ((HRESULT)0x80070057L)
+#  define E_ABORT     ((HRESULT)0x80004004L)
+#  define _HRESULT_DEFINED
+# endif
+struct ID3D12CommandQueue;
+struct ID3D12GraphicsCommandList;
+struct ID3D12CommandList;
+#endif
 
 namespace synapse::d3d12 {
 
@@ -48,10 +62,9 @@ using D3D12Hook = void (*)(void* cmd_object, void* recorded_state);
  * @brief COM vtable interception utilities.
  *
  * Pattern:
- *   1. Copy the original vtable into a new heap allocation.
- *   2. Replace the desired slot with a hook function.
- *   3. Overwrite the object's vtable pointer with the patched copy.
- *   4. The hook calls the original vtable slot, then invokes user code.
+ *   1. Patch the desired vtable slot in-place with a trampoline.
+ *   2. The trampoline calls the original vtable slot, then invokes user code.
+ *   3. restore() reverts the slot when the object's lifetime ends.
  */
 namespace vtable {
     /**
@@ -65,6 +78,8 @@ namespace vtable {
     void restore(void** object_vtable, size_t index, void* original) noexcept;
 }
 
+#if defined(_WIN32)
+
 /**
  * @brief Intercept ID3D12CommandQueue::ExecuteCommandLists.
  *
@@ -77,7 +92,7 @@ struct CommandQueueInterceptor {
 
     static void on_execute_command_lists(
         ID3D12CommandQueue* queue,
-        UINT NumLists,
+        unsigned int NumLists,
         ID3D12CommandList* const* ppLists) noexcept;
 };
 
@@ -91,25 +106,27 @@ struct GraphicsCommandListInterceptor {
 
     static void on_draw_indexed_instanced(
         ID3D12GraphicsCommandList* list,
-        UINT IndexCountPerInstance,
-        UINT InstanceCount,
-        UINT StartIndexLocation,
-        INT BaseVertexLocation,
-        UINT StartInstanceLocation) noexcept;
+        unsigned int IndexCountPerInstance,
+        unsigned int InstanceCount,
+        unsigned int StartIndexLocation,
+        int BaseVertexLocation,
+        unsigned int StartInstanceLocation) noexcept;
 
     static void on_draw_instanced(
         ID3D12GraphicsCommandList* list,
-        UINT VertexCountPerInstance,
-        UINT InstanceCount,
-        UINT StartVertexLocation,
-        UINT StartInstanceLocation) noexcept;
+        unsigned int VertexCountPerInstance,
+        unsigned int InstanceCount,
+        unsigned int StartVertexLocation,
+        unsigned int StartInstanceLocation) noexcept;
 
     static void on_dispatch(
         ID3D12GraphicsCommandList* list,
-        UINT ThreadGroupCountX,
-        UINT ThreadGroupCountY,
-        UINT ThreadGroupCountZ) noexcept;
+        unsigned int ThreadGroupCountX,
+        unsigned int ThreadGroupCountY,
+        unsigned int ThreadGroupCountZ) noexcept;
 };
+
+#endif // _WIN32
 
 } // namespace synapse::d3d12
 

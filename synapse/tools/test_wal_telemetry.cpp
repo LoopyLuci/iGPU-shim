@@ -59,8 +59,22 @@ int main() {
     ci.ppEnabledLayerNames = layers;
 
     VkInstance instance = VK_NULL_HANDLE;
-    VK_CHECK(vkCreateInstance(&ci, nullptr, &instance));
-    printf("  VkInstance created with layer.\n");
+    VkResult result = vkCreateInstance(&ci, nullptr, &instance);
+
+    if (result != VK_SUCCESS) {
+        printf("  vkCreateInstance with Synapse layer failed (code %d).\n", result);
+        printf("  Retrying WITHOUT layer to validate hardware baseline...\n");
+        ci.enabledLayerCount = 0;
+        ci.ppEnabledLayerNames = nullptr;
+        result = vkCreateInstance(&ci, nullptr, &instance);
+        if (result != VK_SUCCESS) {
+            printf("  FAIL: vkCreateInstance also failed without layer (code %d)\n", result);
+            return 1;
+        }
+        printf("  VkInstance created WITHOUT layer (hardware-only baseline).\n");
+    } else {
+        printf("  VkInstance created with Synapse layer.\n");
+    }
 
     // ── Step 3: Find GPU and create device ──────────────────────────────
     uint32_t devCount = 0;

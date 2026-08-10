@@ -122,6 +122,7 @@ add_custom_command(TARGET SynapseLayer POST_BUILD
 enable_testing()
 
 file(GLOB TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/synapse/tests/*.cpp")
+file(GLOB TOOL_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/synapse/tools/test_*.cpp")
 
 foreach(TEST_SRC ${TEST_SRCS})
     get_filename_component(TEST_NAME "${TEST_SRC}" NAME_WE)
@@ -146,11 +147,29 @@ foreach(TEST_SRC ${TEST_SRCS})
     add_test(NAME "${TEST_NAME}_power_verify" COMMAND "${TEST_NAME}_pv")
 endforeach()
 
+foreach(TEST_SRC ${TOOL_TEST_SRCS})
+    get_filename_component(TEST_NAME "${TEST_SRC}" NAME_WE)
+
+    add_executable("${TEST_NAME}" "${TEST_SRC}")
+    target_include_directories("${TEST_NAME}" PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/synapse"
+        "${Vulkan_INCLUDE_DIRS}"
+    )
+    target_link_libraries("${TEST_NAME}" PRIVATE SynapseLayer Vulkan::Vulkan)
+    add_test(NAME "${TEST_NAME}" COMMAND "${TEST_NAME}")
+endforeach()
+
 # ── Tool executables ───────────────────────────────────────────────────────────
 file(GLOB TOOL_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/synapse/tools/*.cpp")
 
 foreach(TOOL_SRC ${TOOL_SRCS})
     get_filename_component(TOOL_NAME "${TOOL_SRC}" NAME_WE)
+
+    # Skip tools that are already registered as tests to avoid duplicate targets.
+    if(TOOL_NAME MATCHES "^test_")
+        continue()
+    endif()
+
     add_executable("${TOOL_NAME}" "${TOOL_SRC}")
     target_include_directories("${TOOL_NAME}" PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/synapse"
