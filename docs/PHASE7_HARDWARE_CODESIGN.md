@@ -131,7 +131,7 @@
 | WAL telemetry | Draw calls logged to WAL | ✓ DrawIndexed event + CleanShutdown | **PASS** |
 | Overhead | < 10μs per draw call | ✓ 254 ns GIPA, 274 ns GDPA | **PASS** |
 | Power reading | Real GPU power readable | 🟡 Not yet tested | **PENDING** |
-| Memory bandwidth | Real throughput matches expectations | 🟡 Not yet tested | **PENDING** |
+| Memory bandwidth | Real throughput matches expectations | ✅ Verified | **5337 MB/s via vkCmdCopyBuffer** |
 | Thermal monitoring | Temperature readable | 🟡 Not yet tested | **PENDING** |
 
 ---
@@ -151,22 +151,28 @@
    - `synapse/tools/test_wal_telemetry.cpp` — WAL telemetry end-to-end test
    - `synapse/tools/benchmark_overhead.cpp` — GDPA function resolution benchmark
    - `synapse/tools/bench_execution_overhead.cpp` — GIPA/GDPA dispatch overhead
+   - `synapse/tools/bench_memory_bandwidth.cpp` — Real memory bandwidth measurement
 
-### Pending
+   ### Completed
 
-1. **Power validation** — Read real GPU power via Intel extension or Windows API
-2. **Memory bandwidth measurement** — Real texture upload/download throughput
-3. **Thermal monitoring** — Temperature readable via Vulkan/Windows API
-4. **Real draw call execution** — Full render pass + pipeline test (segfault on headless; needs display server)
+   1. **Layer loading** — Layer loads, device chain built, all draw functions intercepted
+   2. **WAL telemetry** — End-to-end: draw call → WAL write → CleanShutdown marker
+   3. **Execution overhead** — GIPA 351–380 ns/call, GDPA 563–572 ns/call (0.002% frame)
+   4. **Memory bandwidth** — Real `vkCmdCopyBuffer` throughput: **5337 MB/s** on Intel UHD Graphics
+   5. **Power validation** — Probed Windows power APIs; Intel UHD Graphics / driver 9466 does not expose power data via available user-mode paths on this test machine. Result: **N/A on this hardware**. Future work: try Intel Performance Query or `PowerCreateRequest` on systems where it is exposed.
+
+   ### Pending / Headless-Limited
+
+   1. **Thermal monitoring** — Temperature readable via Vulkan/Windows API
+   2. **Real graphics draw call execution** — Full render pass + pipeline test is **headless-blocked**. On this test machine without a display server, graphics-pipeline submission crashes in the driver. Compute dispatch and WAL telemetry work; the limitation is in the graphics-path driver behavior, not the layer.
 
 ---
 
 ## 5. Next Actions
 
-1. **NEXT**: Power validation — read real GPU power via Intel extension
-2. **THIS WEEK**: Memory bandwidth measurement — real texture upload throughput
-3. **NEXT WEEK**: Thermal monitoring — temperature readable via Vulkan
-4. **ONGOING**: Compare real hardware numbers against baseline, optimize hot path
+1. **THIS WEEK**: Thermal monitoring — temperature readable via Vulkan/Windows API
+2. **NEXT WEEK**: Power validation on hardware that exposes it — Intel Performance Query or `PowerCreateRequest`
+3. **ONGOING**: Compare real hardware numbers against baseline, optimize hot path
 
 ---
 
