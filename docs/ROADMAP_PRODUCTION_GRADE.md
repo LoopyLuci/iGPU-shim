@@ -1652,3 +1652,23 @@ private:
 ---
 
 *This roadmap transforms Synapse from a working prototype into a production-grade system that can survive the next 100 years while being optimized for personal use.*
+
+## Current Status (2026-08-10)
+
+| Area | Status | Evidence |
+|:-----|:-------|:---------|
+| Layer load / GDPA chaining | ✅ Verified | `VK_LAYER_SYNAPSE_iGPU_Shim` loads on Intel UHD 630; `extern "C"` fix landed |
+| WAL telemetry | ✅ Verified | DrawIndexed + CleanShutdown events confirmed on real hardware |
+| Overhead | ✅ Verified | 254 ns GIPA / 274 ns GDPA; 5337 MB/s via `vkCmdCopyBuffer` |
+| Analyzer thread | ✅ Verified | Background analyzer consumes telemetry and emits JIT/Oracle recommendations |
+| CI | ✅ Verified | Local-only via `build_msvc.bat + ctest`; GitHub Actions removed |
+| D3D12 backend | 🟡 Scaffolded | COM vtable interception scaffolding added; no production interception yet |
+| Graphics draw-path | 🟡 Limited | `vkCreateWin32SurfaceKHR` succeeds; full draw submission crashes Intel driver 9466 under Parsec |
+| NixOS local runner | 🟡 Scaffolded | `nix/flake.nix` added for native/VM task execution on personal hardware |
+| Thermal / power | N/A | Intel UHD 630 / driver 9466 does not expose these via available Windows user-mode APIs |
+
+### Active Work
+1. D3D12 COM vtable interception implementation
+2. Analyzer edge-case coverage and shutdown-race hardening
+3. Alternative headless draw-path validation via compute/bandwidth telemetry
+4. NixOS runner integration and local validation
