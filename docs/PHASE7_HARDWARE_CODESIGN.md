@@ -132,7 +132,7 @@
 | Overhead | < 10μs per draw call | ✓ 254 ns GIPA, 274 ns GDPA | **PASS** |
 | Power reading | Real GPU power readable | 🟡 Not yet tested | **PENDING** |
 | Memory bandwidth | Real throughput matches expectations | ✅ Verified | **5337 MB/s via vkCmdCopyBuffer** |
-| Thermal monitoring | Temperature readable | 🟡 Not yet tested | **PENDING** |
+| Thermal monitoring | Temperature readable | 🟡 Probed | **N/A on this hardware** |
 
 ---
 
@@ -161,10 +161,18 @@
    4. **Memory bandwidth** — Real `vkCmdCopyBuffer` throughput: **5337 MB/s** on Intel UHD Graphics
    5. **Power validation** — Probed Windows power APIs; Intel UHD Graphics / driver 9466 does not expose power data via available user-mode paths on this test machine. Result: **N/A on this hardware**. Future work: try Intel Performance Query or `PowerCreateRequest` on systems where it is exposed.
 
-   ### Pending / Headless-Limited
+   ### Completed
 
-   1. **Thermal monitoring** — Temperature readable via Vulkan/Windows API
-   2. **Real graphics draw call execution** — Full render pass + pipeline test is **headless-blocked**. On this test machine without a display server, graphics-pipeline submission crashes in the driver. Compute dispatch and WAL telemetry work; the limitation is in the graphics-path driver behavior, not the layer.
+   1. **Layer loading** — Layer loads, device chain built, all draw functions intercepted
+   2. **WAL telemetry** — End-to-end: draw call → WAL write → CleanShutdown marker
+   3. **Execution overhead** — GIPA 351–380 ns/call, GDPA 563–572 ns/call (0.002% frame)
+   4. **Memory bandwidth** — Real `vkCmdCopyBuffer` throughput: **5337 MB/s** on Intel UHD Graphics
+   5. **Power validation** — Probed Windows power APIs; Intel UHD Graphics / driver 9466 does not expose power data via available user-mode paths on this test machine. Result: **N/A on this hardware**.
+   6. **Thermal monitoring** — Probed Vulkan extensions, WMI classes, and Windows Power APIs. No thermal data exposed on this hardware. Result: **N/A on this hardware**.
+
+   ### Headless-Limited
+
+   1. **Real graphics draw call execution** — Full render pass + pipeline test is **headless-blocked**. On this test machine without a display server, graphics-pipeline submission crashes in the driver. Compute dispatch and WAL telemetry work; the limitation is in the graphics-path driver behavior, not the layer.
 
 ---
 
