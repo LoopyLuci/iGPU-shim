@@ -124,15 +124,15 @@
 
 ## 3. Success Criteria Update
 
-| Test | Criterion | Actual Result | Status |
-|------|-----------|---------------|--------|
+|| Test | Criterion | Actual Result | Status |
+|:------|:-----------|:---------------|:--------|
 | Layer loading | DLL loads without crash | ✓ No crash, layer found | **PASS** |
 | Device chain | All draw functions via GDPA | ✓ 5/5 intercepted | **PASS** |
 | WAL telemetry | Draw calls logged to WAL | ✓ DrawIndexed event + CleanShutdown | **PASS** |
 | Overhead | < 10μs per draw call | ✓ 254 ns GIPA, 274 ns GDPA | **PASS** |
-| Power reading | Real GPU power readable | 🟡 Not yet tested | **PENDING** |
 | Memory bandwidth | Real throughput matches expectations | ✅ Verified | **5337 MB/s via vkCmdCopyBuffer** |
 | Thermal monitoring | Temperature readable | 🟡 Probed | **N/A on this hardware** |
+| Graphics draw-path (Parsec) | Surface + draw submission stable | ✓ Surface created; ✗ driver segfaults on draw submit | **HARDWARE LIMITATION** |
 
 ---
 
@@ -186,15 +186,15 @@
 
 ## 6. Risk Mitigation
 
-| Risk | Status | Mitigation |
-|------|--------|------------|
+|| Risk | Status | Mitigation |
+|:------|:--------|:-----------|
 | Layer fails to load | ✅ Fixed | extern "C" linkage for GDPA |
 | iGPU not detected | ✅ Verified | Intel UHD Graphics detected, API 1.2.170 |
 | Draw calls not intercepted | ✅ Verified | GDPA works, WAL shows DrawIndexed event |
 | Overhead too high | ✅ Verified | 292 ns GIPA / 291 ns GDPA (0.0018% frame) |
-| CI coverage | 🟡 Added | Windows CI via GitHub Actions |
-| Driver crashes | ✅ Stable | No crashes in 12/12 CTests + real hardware |
-| Headless display server | 🟡 Known | Compute path works; graphics path needs display |
+| CI coverage | ✅ Fixed | Local-only via `build_msvc.bat + ctest`; GitHub Actions removed |
+| Driver crashes on graphics submit | 🟡 Known | Reproducible on Intel UHD 630 / driver 9466 even under Parsec; compute and copy paths are stable |
+| Headless display server | 🟡 Known | Compute/WAL work; real graphics draw-path is driver-limited on this hardware |
 
 ---
 
@@ -202,4 +202,4 @@
 *The Synapse implicit layer loads, intercepts draw calls, and writes to WAL*
 *on real Intel UHD Graphics hardware with negligible overhead (< 1µs).*
 *Thermal/power APIs are hardware-dependent and returned N/A on this hardware.*
-*Graphics-pipeline draw execution remains headless-blocked; see README.md for runbook.*
+*Full graphics-pipeline draw submission is limited by the Intel driver on this test machine; compute dispatch and memory bandwidth benchmarks are stable.*

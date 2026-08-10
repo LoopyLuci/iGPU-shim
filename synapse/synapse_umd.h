@@ -128,6 +128,10 @@ public:
         return static_cast<float>(h + 1u) / static_cast<float>(h + m + 2u);
     }
 
+    WorkloadSignature get_last_known_signature() const noexcept {
+        return last_signature_;
+    }
+
 private:
     void update_model(const WorkloadSignature& sample) {
         ExecutionBackend recommendation = ExecutionBackend::JIT;
@@ -144,11 +148,6 @@ private:
 
         inferred_backend_.store(recommendation, std::memory_order_relaxed);
         last_signature_ = sample;
-    }
-
-public:
-    WorkloadSignature get_last_known_signature() const noexcept {
-        return last_signature_;
     }
 
 private:

@@ -77,7 +77,8 @@ iGPU Hardware
 | Device chain | All draw functions intercepted via GDPA |
 | WAL telemetry | Draw call → WAL write → CleanShutdown marker verified |
 | Memory bandwidth | **5337 MB/s** via `vkCmdCopyBuffer` |
-| CI | GitHub Actions workflow present |
+| CI | Local-only via `build_msvc.bat + ctest` |
+| Graphics draw-path (Parsec session) | `vkCreateWin32SurfaceKHR` succeeds, but full graphics draw submission crashes the Intel driver before WAL telemetry can be observed. Compute dispatch and `vkCmdCopyBuffer` work. |
 
 ---
 

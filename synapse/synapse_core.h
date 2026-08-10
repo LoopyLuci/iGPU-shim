@@ -111,6 +111,10 @@ public:
         return degrade_.is_available(feature);
     }
 
+    ExecutionBackend current_analyzer_recommendation() const {
+        return analyzer_.current_recommendation();
+    }
+
     // ------------------------------------------------------------------
     // Config synchronization: UserProfile → AtomicConfig
     // Call after apply_preset() or update_usage() to propagate to config_.
