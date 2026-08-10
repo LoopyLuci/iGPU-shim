@@ -142,6 +142,16 @@ Graphics-pipeline submission (`vkCmdDraw` inside a render pass) requires a displ
 - Run on a machine with an active desktop
 - Use compute dispatch (`vkCmdDispatch`) as a substitute; WAL telemetry works headless
 
+### Headless Runbook (Windows)
+
+1. Enable Remote Desktop and connect to the machine
+2. Run the test executable inside the remote session
+3. Alternatively, install a virtual display adapter such as:
+   - Microsoft `RDPWDD` driver via group policy
+   - Third-party virtual display adapter compatible with Intel UHD Graphics
+4. Verify `vulkaninfo` reports a display surface
+5. Run `test_wal_telemetry.exe` and confirm WAL grows with draw submissions
+
 Thermal and power APIs are also hardware-dependent. On Intel UHD Graphics / driver 9466, no power or thermal data is exposed via available user-mode paths.
 
 ---

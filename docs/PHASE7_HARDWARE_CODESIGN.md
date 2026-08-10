@@ -198,7 +198,8 @@
 
 ---
 
-*Phase 7 hardware co-design is actively complete for core layer functionality.
-The Synapse implicit layer loads, intercepts draw calls, and writes to WAL
-on real Intel UHD Graphics hardware with negligible overhead (< 1μs).
-Power, memory, and thermal validation are next.*
+*Phase 7 hardware co-design is complete for core layer functionality on this test machine.*
+*The Synapse implicit layer loads, intercepts draw calls, and writes to WAL*
+*on real Intel UHD Graphics hardware with negligible overhead (< 1µs).*
+*Thermal/power APIs are hardware-dependent and returned N/A on this hardware.*
+*Graphics-pipeline draw execution remains headless-blocked; see README.md for runbook.*
