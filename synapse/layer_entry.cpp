@@ -106,7 +106,8 @@ VKAPI_ATTR VkResult VKAPI_CALL SynapseLayer_vkCreateInstance(
     VkInstance*                  pInstance)
 {
     VkLayerInstanceCreateInfo* link = find_instance_link(pCreateInfo);
-    if (!link) return VK_ERROR_INITIALIZATION_FAILED;
+    if (!link)
+        return VK_ERROR_INITIALIZATION_FAILED;
 
     // Consume this layer's link entry.
     PFN_vkGetInstanceProcAddr next_gipa =
@@ -152,7 +153,8 @@ VKAPI_ATTR VkResult VKAPI_CALL SynapseLayer_vkCreateDevice(
     VkDevice*                    pDevice)
 {
     VkLayerDeviceCreateInfo* link = find_device_link(pCreateInfo);
-    if (!link) return VK_ERROR_INITIALIZATION_FAILED;
+    if (!link)
+        return VK_ERROR_INITIALIZATION_FAILED;
 
     PFN_vkGetInstanceProcAddr next_gipa =
         link->u.pLayerInfo->pfnNextGetInstanceProcAddr;
@@ -567,16 +569,25 @@ VKAPI_ATTR void VKAPI_CALL SynapseLayer_vkFreeCommandBuffers(
 }
 
 // ── vkGetDeviceProcAddr ───────────────────────────────────────────────────────
+// Both entry points must have C linkage so the Vulkan loader can find them
+// by name via GetProcAddress.
+extern "C" {
+
 SYNAPSE_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL SynapseLayer_vkGetDeviceProcAddr(
     VkDevice    device,
     const char* pName)
 {
     // Intercept the functions we hook.
-    if (!strcmp(pName, "vkGetDeviceProcAddr"))   return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkGetDeviceProcAddr);
-    if (!strcmp(pName, "vkDestroyDevice"))       return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkDestroyDevice);
-    if (!strcmp(pName, "vkCmdDrawIndexed"))      return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkCmdDrawIndexed);
-    if (!strcmp(pName, "vkCmdBindPipeline"))     return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkCmdBindPipeline);
-    if (!strcmp(pName, "vkFreeCommandBuffers"))  return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkFreeCommandBuffers);
+    if (!strcmp(pName, "vkGetDeviceProcAddr"))        return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkGetDeviceProcAddr);
+    if (!strcmp(pName, "vkCreateDevice"))             return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkCreateDevice);
+    if (!strcmp(pName, "vkDestroyDevice"))            return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkDestroyDevice);
+    if (!strcmp(pName, "vkCmdDrawIndexed"))           return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkCmdDrawIndexed);
+    if (!strcmp(pName, "vkCmdDraw"))                  return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkCmdDraw);
+    if (!strcmp(pName, "vkCmdDispatch"))              return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkCmdDispatch);
+    if (!strcmp(pName, "vkCmdBindPipeline"))          return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkCmdBindPipeline);
+    if (!strcmp(pName, "vkCmdBindDescriptorSets"))    return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkCmdBindDescriptorSets);
+    if (!strcmp(pName, "vkCmdPushConstants"))         return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkCmdPushConstants);
+    if (!strcmp(pName, "vkFreeCommandBuffers"))       return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkFreeCommandBuffers);
 
     // Pass everything else to the next layer / ICD.
     std::lock_guard<std::mutex> lock(g_device_mutex);
@@ -589,8 +600,6 @@ SYNAPSE_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL SynapseLayer_vkGetDevice
 // ── vkGetInstanceProcAddr ─────────────────────────────────────────────────────
 // This is the entry point named in the JSON manifest.  It must be exported
 // with C linkage so the Vulkan loader can find it by name.
-extern "C" {
-
 
 SYNAPSE_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL SynapseLayer_vkGetInstanceProcAddr(
     VkInstance  instance,
@@ -617,7 +626,9 @@ SYNAPSE_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL SynapseLayer_vkGetInstan
     if (!strcmp(pName, "vkDestroyImage"))        return reinterpret_cast<PFN_vkVoidFunction>(SynapseLayer_vkDestroyImage);
 
     // Chain to next layer / ICD for every unhooked function.
-    if (instance == VK_NULL_HANDLE) return nullptr;
+    // For NULL instance, only device-level functions can be returned (no chain available).
+    if (instance == VK_NULL_HANDLE)
+        return nullptr;
     std::lock_guard<std::mutex> lock(g_instance_mutex);
     auto it = g_instances.find(dispatch_key(instance));
     if (it != g_instances.end() && it->second.next_gipa)

@@ -87,3 +87,4 @@ test_header.bat
 test_header.cpp
 test_vulkan.cpp
 compile_commands.json
+synapse_debug.log
