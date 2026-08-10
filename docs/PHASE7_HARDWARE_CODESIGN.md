@@ -191,7 +191,8 @@
 | Layer fails to load | ✅ Fixed | extern "C" linkage for GDPA |
 | iGPU not detected | ✅ Verified | Intel UHD Graphics detected, API 1.2.170 |
 | Draw calls not intercepted | ✅ Verified | GDPA works, WAL shows DrawIndexed event |
-| Overhead too high | ✅ Verified | 254 ns GIPA / 274 ns GDPA (0.0015% frame) |
+| Overhead too high | ✅ Verified | 292 ns GIPA / 291 ns GDPA (0.0018% frame) |
+| CI coverage | 🟡 Added | Windows CI via GitHub Actions |
 | Driver crashes | ✅ Stable | No crashes in 12/12 CTests + real hardware |
 | Headless display server | 🟡 Known | Compute path works; graphics path needs display |
 
