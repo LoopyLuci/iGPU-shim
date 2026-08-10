@@ -146,13 +146,17 @@ Thermal and power APIs are also hardware-dependent. On Intel UHD Graphics / driv
 
 ---
 
-## CI
+## Local CI
 
-GitHub Actions workflow: `.github/workflows/windows-ci.yml`
+Run the full local CI pipeline on this machine:
 
-- Runs on: `windows-2022`
-- Builds with: Visual Studio 17 2022, x64, Release
-- Validates: 12/12 CTests
+```powershell
+.\build_msvc.bat Release stub
+cd build_stub
+ctest --output-on-failure -C Release
+```
+
+This is the canonical local CI path. Build and test are fully self-contained on the host GPU/CPU; no external runner or third-party action is required.
 
 ---
 
