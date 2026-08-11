@@ -24,6 +24,7 @@ using UnloadFunc = void (__stdcall*)();
 using ReadyFunc = bool (*)();
 using InstallHookFunc = long (*)(void*, void*, void**);
 using RemoveHookFunc = long (*)(void*, void*);
+using HelperTestFunc = int (__stdcall*)(int);
 
 static std::string build_dll_path() {
     char exePath[MAX_PATH] = {0};
@@ -41,7 +42,8 @@ static bool load_helper(const std::string& path,
                         ReadyFunc& outReady,
                         UnloadFunc& outDetach,
                         InstallHookFunc& outInstall,
-                        RemoveHookFunc& outRemove) {
+                        RemoveHookFunc& outRemove,
+                        HelperTestFunc& outHelperTest) {
     outModule = LoadLibraryA(path.c_str());
     if (!outModule) return false;
     outAttach = reinterpret_cast<LoadFunc>(
@@ -54,7 +56,9 @@ static bool load_helper(const std::string& path,
         GetProcAddress(outModule, "install_hook"));
     outRemove = reinterpret_cast<RemoveHookFunc>(
         GetProcAddress(outModule, "remove_hook"));
-    return outAttach && outReady && outDetach && outInstall && outRemove;
+    outHelperTest = reinterpret_cast<HelperTestFunc>(
+        GetProcAddress(outModule, "helper_test"));
+    return outAttach && outReady && outDetach && outInstall && outRemove && outHelperTest;
 }
 
 static void __stdcall hook_target() {
@@ -75,8 +79,9 @@ int main() {
     UnloadFunc detach = nullptr;
     InstallHookFunc install = nullptr;
     RemoveHookFunc remove = nullptr;
+    HelperTestFunc helper_test = nullptr;
 
-    if (!load_helper(dllPath, module, attach, ready, detach, install, remove)) {
+    if (!load_helper(dllPath, module, attach, ready, detach, install, remove, helper_test)) {
         const unsigned long err = GetLastError();
         char msg[512] = {0};
         FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -98,6 +103,21 @@ int main() {
         detach();
         FreeLibrary(module);
         printf("  FAIL: is_ready() returned false after attach\n");
+        return 1;
+    }
+
+    // Validate exported helper_test before any hooking.
+    if (helper_test(7) != 8) {
+        detach();
+        FreeLibrary(module);
+        printf("  FAIL: helper_test(7) did not return 8 before hooking\n");
+        return 1;
+    }
+
+    if (helper_test(-5) != -4) {
+        detach();
+        FreeLibrary(module);
+        printf("  FAIL: helper_test(-5) did not return -4\n");
         return 1;
     }
 
@@ -123,6 +143,23 @@ int main() {
 
     detach();
     FreeLibrary(module);
+
+    {
+        HMODULE reloaded = LoadLibraryA(dllPath.c_str());
+        if (!reloaded) {
+            printf("  FAIL: could not reload helper DLL after detach\n");
+            return 1;
+        }
+        auto reloaded_test = reinterpret_cast<HelperTestFunc>(
+            GetProcAddress(reloaded, "helper_test"));
+        if (!reloaded_test || reloaded_test(9) != 10) {
+            FreeLibrary(reloaded);
+            printf("  FAIL: helper_test not exported cleanly after detach\n");
+            return 1;
+        }
+        FreeLibrary(reloaded);
+    }
+
     printf("  Loaded, attached, installed/removed hook, detached, and unloaded.\n");
     printf("Result: PASS\n");
     return 0;

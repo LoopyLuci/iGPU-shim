@@ -59,6 +59,24 @@ int main() {
     auto identity = schema.migrate(make_payload("world"), 1, 1);
     assert(payload_as_string(identity) == "world");
 
+    // 5b) Same-version path discovery is true even without a direct edge.
+    assert(schema.has_path(1, 1) == true);
+
+    // 5c) Downgrade with no registered reverse edge throws.
+    bool downgrade_threw = false;
+    try {
+        schema.migrate(make_payload("x"), 2, 0);
+    } catch (const std::exception&) {
+        downgrade_threw = true;
+    }
+    assert(downgrade_threw);
+
+    // 5d) Duplicate registration is ignored and does not inflate count.
+    schema.register_migration(0, 1, [](const std::vector<uint8_t>& data) {
+        return data;
+    });
+    assert(schema.migration_count() == 2);
+
     // 6) Missing path throws.
     bool threw = false;
     try {

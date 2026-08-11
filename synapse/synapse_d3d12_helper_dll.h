@@ -51,9 +51,11 @@ long remove_hook(void* target, void* original) noexcept;
 #if defined(_WIN32)
 extern "C" __declspec(dllexport) long __stdcall attach_process_hooks();
 extern "C" __declspec(dllexport) void __stdcall detach_process_hooks();
+extern "C" __declspec(dllexport) int __stdcall helper_test(int value);
 #else
 long attach_process_hooks();
 void detach_process_hooks();
+int helper_test(int value);
 #endif
 
 }  // namespace synapse::d3d12::helper

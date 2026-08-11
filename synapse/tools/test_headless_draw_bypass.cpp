@@ -73,15 +73,35 @@ int main() {
         (void)rec;
     }
 
+    const uint64_t after_first = wal_size(wal_path);
+    printf("  First batch WAL size: %llu bytes\n", (unsigned long long)after_first);
+
+    {
+        synapse::SynapseCore core(
+            stub_draw_indexed, stub_draw, stub_dispatch,
+            stub_push_constants, stub_bind_desc_sets, stub_bind_shaders,
+            dir.string());
+
+        // Second batch: repeat draw-like ops to confirm sustained telemetry.
+        core.handle_dispatch(VK_NULL_HANDLE, 8, 8, 2);
+        core.handle_draw_indexed(VK_NULL_HANDLE, 12, 2, 0, 0, 0);
+        core.handle_draw(VK_NULL_HANDLE, 5, 2, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(80));
+    }
+
     const uint64_t final_size = wal_size(wal_path);
     printf("  Calls  : dispatch=%d, draw_indexed=%d, draw=%d\n",
            dispatch_ok, draw_indexed_ok, draw_ok);
-    printf("  WAL size: %llu -> %llu bytes\n", (unsigned long long)initial_size, (unsigned long long)final_size);
+    printf("  WAL size: %llu -> %llu -> %llu bytes\n",
+           (unsigned long long)initial_size,
+           (unsigned long long)after_first,
+           (unsigned long long)final_size);
 
     fs::remove_all(dir);
 
     assert(dispatch_ok == 1 && draw_indexed_ok == 1 && draw_ok == 1);
-    assert(final_size > initial_size && "WAL did not grow after headless draw-like ops");
+    assert(after_first > initial_size && "WAL did not grow after first headless batch");
+    assert(final_size > after_first && "WAL did not grow after second headless batch");
     printf("Result: PASS\n");
     return 0;
 }

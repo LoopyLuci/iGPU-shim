@@ -224,8 +224,9 @@ This is the canonical local CI path. Build and test are fully self-contained on 
 
 The main layer avoids heavy Windows inline-hook/D3D12 dependencies because MSVC build constraints make inline trampolines and code-patching fragile. Instead, D3D12 interception is isolated in a separate helper DLL:
 
-- `synapse/synapse_d3d12_helper_dll.h` — exported hook lifecycle interface
-- `synapse/synapse_d3d12_helper_dll.cpp` — self-contained Windows-only implementation
+- `synapse/synapse_d3d12_helper_dll.h` — exported hook lifecycle interface plus `helper_test()` for DLL smoke testing
+- `synapse/synapse_d3d12_helper_dll.cpp` — self-contained Windows-only implementation with `install_hook`/`remove_hook` over function-pointer replacement
+- `synapse/SynapseD3D12Helper.def` — explicit Windows export list for a stable DLL surface
 - `synapse/synapse_d3d12_layer.h/.cpp` — COM vtable interception scaffolding
 - `synapse/tools/test_d3d12_helper_dll.cpp` — dynamic-load test for the helper DLL
 - `synapse/tools/test_d3d12_interception.cpp` — mock COM vtable unit test
@@ -240,3 +241,6 @@ Build artifacts on Windows:
 NixOS validation:
 - If you have Nix installed, run `nix flake check` from `nix/` to validate `flake.nix`.
 - Current status: syntax sanitized locally on Windows; full validation requires a Nix environment.
+
+D3D12 design note:
+- The current helper DLL validates lifecycle and exports successfully, but in-process function-pointer replacement is only exercised against bookkeeping and a mock hook target. Real device entry-point interception via this path is still exploratory.

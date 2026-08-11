@@ -150,4 +150,15 @@ extern "C" __declspec(dllexport) void __stdcall detach_process_hooks() {
     shutdown();
 }
 
+namespace {
+int g_helper_test_value = 0;
+int __stdcall helper_test_impl(int value) {
+    return value + 1;
+}
+}
+
+extern "C" __declspec(dllexport) int __stdcall helper_test(int value) {
+    return helper_test_impl(value);
+}
+
 }  // namespace synapse::d3d12::helper
