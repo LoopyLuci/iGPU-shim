@@ -280,3 +280,11 @@ D3D12 design note:
   - remove avg: `0.000 ms`
 - `SynapseCore` now logs helper-DLL load/attach failures with Win32 error codes, stores the loaded `HMODULE`, and calls `detach_process_hooks` + `FreeLibrary` during destruction.
 - Tested Windows SDK: `10.0.26100.0` (`d3d12.h` layout matches dumped indices above).
+
+## Known Limitations
+
+- **Intel UHD 630 driver crash**: Full graphics draw submission (`vkCmdDraw` inside a render pass) crashes the Intel UHD 630 driver (27.20.100.9466) before WAL telemetry can be observed. Compute dispatch and `vkCmdCopyBuffer` work. Use a virtual display adapter or remote desktop session to test the graphics draw path.
+- **MSVC vtable-patching instability**: In-process COM vtable patching crashes (`exit 139`) under MSVC on this toolchain. The helper-DLL function-pointer replacement path is the validated Windows interception strategy.
+- **Headless limitations**: Graphics-pipeline submission requires a display server. Without one, the Intel driver may crash before the layer can intercept.
+- **Thermal/power APIs**: Intel UHD 630 / driver 9466 does not expose power or thermal data via available Windows user-mode APIs.
+- **Discrete GPU**: Untested and unsupported on discrete GPU hardware.
