@@ -83,6 +83,18 @@ SynapseCore::SynapseCore(
 }
 
 SynapseCore::~SynapseCore() {
+#if defined(_WIN32)
+    if (d3d12_helper_module_) {
+        auto detach = reinterpret_cast<void (__stdcall*)()>(
+            GetProcAddress(d3d12_helper_module_, "detach_process_hooks"));
+        if (detach) {
+            detach();
+        }
+        FreeLibrary(d3d12_helper_module_);
+        d3d12_helper_module_ = nullptr;
+    }
+#endif
+
     // Stop config watcher first
     if (config_watcher_) {
         config_watcher_->stop();
@@ -175,6 +187,7 @@ bool SynapseCore::try_attach_d3d12_helper() {
         fprintf(stderr,
                 "SynapseCore: helper DLL load failed (%lu): %s\n",
                 err, path.c_str());
+        d3d12_helper_module_ = nullptr;
         return false;
     }
 
@@ -186,6 +199,7 @@ bool SynapseCore::try_attach_d3d12_helper() {
                 "SynapseCore: helper attach_process_hooks not found (%lu)\n",
                 err);
         FreeLibrary(module);
+        d3d12_helper_module_ = nullptr;
         return false;
     }
 
@@ -195,12 +209,11 @@ bool SynapseCore::try_attach_d3d12_helper() {
                 "SynapseCore: attach_process_hooks failed with 0x%08lx\n",
                 hr);
         FreeLibrary(module);
+        d3d12_helper_module_ = nullptr;
         return false;
     }
 
-    // Keep module loaded for the lifetime of SynapseCore.
-    // `detach_process_hooks` will be called from the destructor path
-    // if/when explicit teardown is added later.
+    d3d12_helper_module_ = module;
     return true;
 }
 #endif

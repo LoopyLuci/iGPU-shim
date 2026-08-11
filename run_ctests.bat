@@ -35,6 +35,19 @@ if %CTEST_RC% NEQ 0 (
 ) else (
     echo [run_ctests] PASS
 )
+
+echo [run_ctests] Running D3D12 vtable index consistency check...
+if exist build_stub\Release\test_d3d12_vtable_dump.exe (
+    build_stub\Release\test_d3d12_vtable_dump.exe
+    if errorlevel 1 (
+        echo [run_ctests] vtable dump consistency check: FAIL
+    ) else (
+        echo [run_ctests] vtable dump consistency check: PASS
+    )
+) else (
+    echo [run_ctests] vtable dump executable not found; skipping consistency check
+)
+
 popd
 
 exit /b %CTEST_RC%
