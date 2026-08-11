@@ -1,22 +1,30 @@
 @echo off
-setlocal enabledelayedexpansion
-chcp 65001 >nul
-echo ============================================================
-echo Running local CI: build_msvc.bat Release stub ^> ctest
-echo ============================================================
-call build_msvc.bat Release stub
+setlocal
+set BUILD_TYPE=%1
+set BUILD_PRESET=%2
+
+if "%BUILD_TYPE%"=="" set BUILD_TYPE=Release
+if "%BUILD_PRESET%"=="" set BUILD_PRESET=stub
+
+echo [run_ctests] Build: %BUILD_TYPE% %BUILD_PRESET%
+call build_msvc.bat %BUILD_TYPE% %BUILD_PRESET%
 if errorlevel 1 (
-  echo [CI] Build failed with %errorlevel%
-  exit /b 1
+    echo [run_ctests] BUILD FAILED
+    exit /b 1
 )
-echo [CI] Build succeeded. Running ctest...
+
 pushd build_stub
-ctest --output-on-failure -C Release
-set CTEST_RC=%errorlevel%
+echo [run_ctests] ctest --output-on-failure -C %BUILD_TYPE%
+ctest --output-on-failure -C %BUILD_TYPE%
+set CTEST_RC=%ERRORLEVEL%
 popd
-if !CTEST_RC! equ 0 (
-  echo [CI] ALL TESTS PASSED
+
+echo [run_ctests] Build type : %BUILD_TYPE%
+echo [run_ctests] Build preset: %BUILD_PRESET%
+echo [run_ctests] ctest exit code: %CTEST_RC%
+if %CTEST_RC% EQU 0 (
+    echo [run_ctests] PASS
 ) else (
-  echo [CI] TESTS FAILED: %CTEST_RC%
+    echo [run_ctests] FAIL
 )
 exit /b %CTEST_RC%

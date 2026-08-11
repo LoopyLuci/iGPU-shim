@@ -127,9 +127,13 @@ if (WIN32)
     set_target_properties(SynapseD3D12Helper PROPERTIES
         OUTPUT_NAME "SynapseD3D12Helper"
         POSITION_INDEPENDENT_CODE OFF
+        WINDOWS_EXPORT_ALL_SYMBOLS OFF
     )
     target_include_directories(SynapseD3D12Helper PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/synapse"
+    )
+    set_target_properties(SynapseD3D12Helper PROPERTIES
+        LINK_FLAGS "/DEF:${CMAKE_CURRENT_SOURCE_DIR}/synapse/SynapseD3D12Helper.def"
     )
 endif()
 

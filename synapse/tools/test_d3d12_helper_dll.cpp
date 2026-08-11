@@ -11,8 +11,9 @@
 # include <windows.h>
 #endif
 
-#include "../synapse_d3d12_helper_dll.h"
+#include "synapse_d3d12_helper_dll.h"
 
+#include <cassert>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -21,6 +22,8 @@
 using LoadFunc = long (__stdcall*)();
 using UnloadFunc = void (__stdcall*)();
 using ReadyFunc = bool (*)();
+using InstallHookFunc = long (*)(void*, void*, void**);
+using RemoveHookFunc = long (*)(void*, void*);
 
 static std::string build_dll_path() {
     char exePath[MAX_PATH] = {0};
@@ -36,7 +39,9 @@ static bool load_helper(const std::string& path,
                         HMODULE& outModule,
                         LoadFunc& outAttach,
                         ReadyFunc& outReady,
-                        UnloadFunc& outDetach) {
+                        UnloadFunc& outDetach,
+                        InstallHookFunc& outInstall,
+                        RemoveHookFunc& outRemove) {
     outModule = LoadLibraryA(path.c_str());
     if (!outModule) return false;
     outAttach = reinterpret_cast<LoadFunc>(
@@ -45,7 +50,19 @@ static bool load_helper(const std::string& path,
         GetProcAddress(outModule, "is_ready"));
     outDetach = reinterpret_cast<UnloadFunc>(
         GetProcAddress(outModule, "detach_process_hooks"));
-    return outAttach && outReady && outDetach;
+    outInstall = reinterpret_cast<InstallHookFunc>(
+        GetProcAddress(outModule, "install_hook"));
+    outRemove = reinterpret_cast<RemoveHookFunc>(
+        GetProcAddress(outModule, "remove_hook"));
+    return outAttach && outReady && outDetach && outInstall && outRemove;
+}
+
+static void __stdcall hook_target() {
+    // Target function for hook installation.
+}
+
+static void __stdcall hook_replacement() {
+    // Replacement function for hook installation.
 }
 
 int main() {
@@ -56,8 +73,10 @@ int main() {
     LoadFunc attach = nullptr;
     ReadyFunc ready = nullptr;
     UnloadFunc detach = nullptr;
+    InstallHookFunc install = nullptr;
+    RemoveHookFunc remove = nullptr;
 
-    if (!load_helper(dllPath, module, attach, ready, detach)) {
+    if (!load_helper(dllPath, module, attach, ready, detach, install, remove)) {
         const unsigned long err = GetLastError();
         char msg[512] = {0};
         FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -82,9 +101,29 @@ int main() {
         return 1;
     }
 
+    // Exercise install/remove hook path.
+    void* original = nullptr;
+    const long install_hr = install(reinterpret_cast<void*>(hook_target),
+                                    reinterpret_cast<void*>(hook_replacement),
+                                    &original);
+    if (FAILED(install_hr)) {
+        detach();
+        FreeLibrary(module);
+        printf("  FAIL: install_hook returned 0x%08lx\n", install_hr);
+        return 1;
+    }
+
+    const long remove_hr = remove(reinterpret_cast<void*>(hook_target), original);
+    if (FAILED(remove_hr)) {
+        detach();
+        FreeLibrary(module);
+        printf("  FAIL: remove_hook returned 0x%08lx\n", remove_hr);
+        return 1;
+    }
+
     detach();
     FreeLibrary(module);
-    printf("  Loaded, attached, reported ready, detached, and unloaded.\n");
+    printf("  Loaded, attached, installed/removed hook, detached, and unloaded.\n");
     printf("Result: PASS\n");
     return 0;
 }

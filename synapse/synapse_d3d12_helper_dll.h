@@ -2,8 +2,8 @@
  * @file synapse_d3d12_helper_dll.h
  * @brief External helper DLL interface for D3D12 interception.
  *
- * Provides hook-state tracking and simple function-pointer redirection
- * helpers that can be used from a separate helper DLL.
+ * Provides real hook installation via function-pointer replacement and
+ * exported lifecycle APIs usable from a separate helper DLL.
  */
 
 #ifndef SYNAPSE_D3D12_HELPER_DLL_H
@@ -33,7 +33,20 @@ void shutdown() noexcept;
 bool is_ready() noexcept;
 
 /**
- * @brief Exported entry for compatibility with loader/external consumers.
+ * @brief Install a hook by replacing the function pointer at @p target
+ * with @p replacement and saving the original into @p out_original.
+ *
+ * Returns S_OK on success or a failure HRESULT.
+ */
+long install_hook(void* target, void* replacement, void** out_original) noexcept;
+
+/**
+ * @brief Remove a previously installed hook, restoring @p original.
+ */
+long remove_hook(void* target, void* original) noexcept;
+
+/**
+ * @brief Exported entry points for loader/external consumers.
  */
 #if defined(_WIN32)
 extern "C" __declspec(dllexport) long __stdcall attach_process_hooks();

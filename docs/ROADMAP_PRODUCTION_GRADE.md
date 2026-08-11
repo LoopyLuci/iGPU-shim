@@ -1653,7 +1653,7 @@ private:
 
 *This roadmap transforms Synapse from a working prototype into a production-grade system that can survive the next 100 years while being optimized for personal use.*
 
-## Current Status (2026-08-10)
+## Current Status (2026-08-11)
 
 | Area | Status | Evidence |
 |:-----|:-------|:---------|
@@ -1662,14 +1662,15 @@ private:
 | Overhead | ✅ Verified | 254 ns GIPA / 274 ns GDPA; 5337 MB/s via `vkCmdCopyBuffer` |
 | Analyzer thread | ✅ Verified | Background analyzer consumes telemetry and emits JIT/Oracle recommendations |
 | CI | ✅ Verified | Local-only via `build_msvc.bat + ctest`; `run_ctests.bat` wrapper added; GitHub Actions removed |
-| D3D12 backend | 🟡 Scaffolded | COM vtable interception scaffolding added; IAT hooking approach attempted and deferred after MSVC build failure |
-| Graphics draw-path | 🟡 Limited | `vkCreateWin32SurfaceKHR` succeeds; full draw submission crashes Intel driver 9466 under Parsec; headless draw bypass unit test passes on real hardware |
-| Schema migration | 🟡 Scaffolded | `synapse/protocol/schema_migration.h` added; unit test `test_schema_migration` passes in CTest |
-| NixOS local runner | 🟡 Scaffolded | `nix/flake.nix` added for native/VM task execution on personal hardware |
+| D3D12 backend | 🟡 In progress | `SynapseD3D12Helper.dll` builds and exports real `install_hook`/`remove_hook` APIs; helper-DLL test passes; COM vtable scaffolding in place |
+| Graphics draw-path | 🟡 Limited | `vkCreateWin32SurfaceKHR` succeeds; full draw submission crashes Intel driver 9466 under Parsec; headless draw bypass test passes on real hardware with per-call logging |
+| Schema migration | 🟡 In progress | `synapse/protocol/schema_migration.h` added; unit + integration tests `test_schema_migration` and `test_schema_migration_integration` pass in CTest |
+| NixOS local runner | 🟡 Scaffolded | `nix/flake.nix` present; syntax sanitized on Windows; full validation requires Nix environment |
 | Thermal / power | N/A | Intel UHD 630 / driver 9466 does not expose these via available Windows user-mode APIs |
 
 ### Active Work
-1. Real-hardware validation of headless draw bypass and telemetry behavior
-2. Determine a stable D3D12 interception hooking approach for MSVC
-3. Expand schema migration coverage beyond unit scaffolding
-4. NixOS runner integration and local validation
+1. Expand D3D12 helper-DLL interception from function-pointer replacement to real device entry-point coverage
+2. Add mock-D3D12 device end-to-end test once stable hook path is confirmed
+3. Real-hardware validation of headless draw bypass with extended logging
+4. Expand schema migration coverage beyond unit/integration scaffolding
+5. NixOS runner integration and local validation on NixOS host

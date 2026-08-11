@@ -1,0 +1,9 @@
+LIBRARY "SynapseD3D12Helper"
+EXPORTS
+    attach_process_hooks
+    detach_process_hooks
+    is_ready
+    install_hook
+    remove_hook
+    initialize
+    shutdown

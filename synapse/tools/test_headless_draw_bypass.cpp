@@ -43,6 +43,9 @@ int main() {
     fs::remove(wal_path);
 
     const uint64_t initial_size = wal_size(wal_path);
+    int dispatch_ok = 0;
+    int draw_indexed_ok = 0;
+    int draw_ok = 0;
 
     {
         synapse::SynapseCore core(
@@ -52,14 +55,17 @@ int main() {
 
         // Path A: direct dispatch
         core.handle_dispatch(VK_NULL_HANDLE, 4, 4, 1);
+        ++dispatch_ok;
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         // Path B: draw-indexed
         core.handle_draw_indexed(VK_NULL_HANDLE, 6, 1, 0, 0, 0);
+        ++draw_indexed_ok;
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         // Path C: draw
         core.handle_draw(VK_NULL_HANDLE, 3, 1, 0, 0);
+        ++draw_ok;
         std::this_thread::sleep_for(std::chrono::milliseconds(80));
 
         auto rec = core.current_analyzer_recommendation();
@@ -68,10 +74,13 @@ int main() {
     }
 
     const uint64_t final_size = wal_size(wal_path);
+    printf("  Calls  : dispatch=%d, draw_indexed=%d, draw=%d\n",
+           dispatch_ok, draw_indexed_ok, draw_ok);
     printf("  WAL size: %llu -> %llu bytes\n", (unsigned long long)initial_size, (unsigned long long)final_size);
 
     fs::remove_all(dir);
 
+    assert(dispatch_ok == 1 && draw_indexed_ok == 1 && draw_ok == 1);
     assert(final_size > initial_size && "WAL did not grow after headless draw-like ops");
     printf("Result: PASS\n");
     return 0;
