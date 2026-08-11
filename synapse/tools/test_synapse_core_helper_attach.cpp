@@ -29,6 +29,10 @@ int main() {
     printf("  SynapseCore active: %s\n", active ? "YES" : "NO");
     assert(active && "SynapseCore should be Active after construction");
 
+#if defined(_WIN32)
+    printf("  helper attached: %s\n", core.d3d12_helper_attached() ? "YES" : "NO");
+#endif
+
     printf("Result: PASS\n");
     return 0;
 }

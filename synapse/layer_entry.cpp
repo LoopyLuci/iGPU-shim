@@ -224,6 +224,10 @@ VKAPI_ATTR VkResult VKAPI_CALL SynapseLayer_vkCreateDevice(
         orig_push_constants, orig_bind_desc_sets, orig_bind_shaders,
         data_dir);
 
+#if defined(_WIN32)
+    ctx.core->try_attach_d3d12_helper();
+#endif
+
     // Check for crash recovery from previous session
     auto recovery_info = ctx.core->check_and_recover();
     if (recovery_info.crash_detected) {

@@ -216,6 +216,10 @@ bool SynapseCore::try_attach_d3d12_helper() {
     d3d12_helper_module_ = module;
     return true;
 }
+
+bool SynapseCore::d3d12_helper_attached() const {
+    return d3d12_helper_module_ != nullptr;
+}
 #endif
 
 // ===========================================================================

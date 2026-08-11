@@ -37,8 +37,8 @@ if %CTEST_RC% NEQ 0 (
 )
 
 echo [run_ctests] Running D3D12 vtable index consistency check...
-if exist build_stub\Release\test_d3d12_vtable_dump.exe (
-    build_stub\Release\test_d3d12_vtable_dump.exe
+if exist Release\test_d3d12_vtable_dump.exe (
+    Release\test_d3d12_vtable_dump.exe
     if errorlevel 1 (
         echo [run_ctests] vtable dump consistency check: FAIL
     ) else (
