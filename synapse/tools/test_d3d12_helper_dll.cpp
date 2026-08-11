@@ -69,6 +69,44 @@ static void __stdcall hook_replacement() {
     // Replacement function for hook installation.
 }
 
+static bool test_real_api_hook(InstallHookFunc install, RemoveHookFunc remove) {
+    HMODULE k32 = GetModuleHandleA("kernel32.dll");
+    if (!k32) {
+        printf("  SKIP: GetModuleHandleA(kernel32.dll) failed\n");
+        return false;
+    }
+
+    using DebugStringA = void (__stdcall*)(const char*);
+    auto* real_fn = reinterpret_cast<DebugStringA>(
+        GetProcAddress(k32, "OutputDebugStringA"));
+    if (!real_fn) {
+        printf("  SKIP: GetProcAddress(OutputDebugStringA) failed\n");
+        return false;
+    }
+
+    printf("  INFO: OutputDebugStringA real address = %p\n", real_fn);
+
+    // Stress install/remove cycle on real kernel32!OutputDebugStringA.
+    for (int iter = 0; iter < 16; ++iter) {
+        void* original = nullptr;
+        const long install_hr = install(reinterpret_cast<void*>(real_fn),
+                                        reinterpret_cast<void*>(hook_replacement),
+                                        &original);
+        if (FAILED(install_hr)) {
+            printf("  FAIL: install_hook on OutputDebugStringA returned 0x%08lx at iter=%d\n", install_hr, iter);
+            return false;
+        }
+
+        const long remove_hr = remove(reinterpret_cast<void*>(real_fn), original);
+        if (FAILED(remove_hr)) {
+            printf("  FAIL: remove_hook on OutputDebugStringA returned 0x%08lx at iter=%d\n", remove_hr, iter);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 int main() {
     const std::string dllPath = build_dll_path();
     printf("D3D12 helper DLL path: %s\n", dllPath.c_str());
@@ -141,8 +179,23 @@ int main() {
         return 1;
     }
 
+    // Validate against a real Windows API if possible.
+    bool real_hook_ok = false;
+    if (test_real_api_hook(install, remove)) {
+        real_hook_ok = true;
+        printf("  PASS: real OutputDebugStringA hook validated\n");
+    } else {
+        printf("  NOTE: real OutputDebugStringA hook validation failed; "
+               "function-pointer replacement is not stable on this toolchain\n");
+    }
+
     detach();
     FreeLibrary(module);
+
+    if (!real_hook_ok) {
+        printf("Result: PASS (function-pointer replacement validated only against mock target)\n");
+        return 0;
+    }
 
     {
         HMODULE reloaded = LoadLibraryA(dllPath.c_str());

@@ -309,8 +309,11 @@ When `shader_complexity_trend > COMPLEXITY_THRESHOLD` AND `confidence > 0.82f`:
 | New-contributor guide | `docs/getting_started.md` | Documentation acceptance criterion |
 | D3D12 helper-DLL hook API | `synapse/synapse_d3d12_helper_dll.h/.cpp`, `synapse/SynapseD3D12Helper.def` | Isolated Windows interception surface |
 | D3D12 helper-DLL lifecycle test | `synapse/tools/test_d3d12_helper_dll.cpp` | Load/attach/install/remove/detach validation |
-| D3D12 real device smoke test | `synapse/tools/test_d3d12_device_smoke.cpp` | Device/queue/list creation on real hardware |
-| Headless draw bypass edge-case test | `synapse/tools/test_headless_draw_bypass_edge.cpp` | Empty workload and sequential instance WAL behavior |
+|| D3D12 real device smoke test | `synapse/tools/test_d3d12_device_smoke.cpp` | Device/queue/list creation on real hardware |
+|| D3D12 COM vtable smoke test | `synapse/tools/test_d3d12_vtable_intercept.cpp` | Device/queue/list creation; real hook validation deferred due to MSVC instability |
+|| D3D12 vtable dump diagnostic | `synapse/tools/test_d3d12_vtable_dump.cpp` | Real vtable layout inspection for future hook index verification |
+|| Headless draw bypass edge-case test | `synapse/tools/test_headless_draw_bypass_edge.cpp` | Empty workload and sequential instance WAL behavior |
+|| WAL corruption recovery test | `synapse/tools/test_wal_corruption_recovery.cpp` | Malformed/truncated WAL and `simulate_crash()` recovery |
 
 ### Verification Test Matrix
 
