@@ -7,7 +7,8 @@
  *  - ID3D12CommandQueue
  *  - ID3D12GraphicsCommandList
  *
- * Also validates the hardcoded indices used by the layer against the real vtable.
+ * Also validates the hardcoded indices used by the layer against the real vtable
+ * and emits labeled output for the targeted methods to aid debugging.
  */
 
 #if defined(_WIN32)
@@ -22,6 +23,12 @@
 #if defined(_WIN32)
 # pragma comment(lib, "d3d12.lib")
 # pragma comment(lib, "dxgi.lib")
+
+static const char* format_hex(uintptr_t value) {
+    thread_local static char buf[32];
+    snprintf(buf, sizeof(buf), "0x%016llX", (unsigned long long)value);
+    return buf;
+}
 
 int main() {
     printf("=== D3D12 VTable Dump ===\n");
@@ -73,13 +80,13 @@ int main() {
     printf("ID3D12CommandQueue vtable (first 16 entries):\n");
     void** queue_vt = *reinterpret_cast<void***>(queue);
     for (int i = 0; i < 16; ++i) {
-        printf("  [%02d] %p\n", i, queue_vt[i]);
+        printf("  [%02d] %s\n", i, format_hex((uintptr_t)queue_vt[i]));
     }
 
     printf("ID3D12GraphicsCommandList vtable (first 32 entries):\n");
     void** list_vt = *reinterpret_cast<void***>(list);
     for (int i = 0; i < 32; ++i) {
-        printf("  [%02d] %p\n", i, list_vt[i]);
+        printf("  [%02d] %s\n", i, format_hex((uintptr_t)list_vt[i]));
     }
 
     // Layer hardcoded indices
@@ -87,6 +94,20 @@ int main() {
     constexpr size_t kList_DrawIndexedInstanced  = 13;
     constexpr size_t kList_DrawInstanced         = 12;
     constexpr size_t kList_Dispatch              = 14;
+
+    printf("\nConsistency check:\n");
+    printf("  ExecuteCommandLists [%zu] = %s\n",
+           kQueue_ExecuteCommandLists,
+           format_hex((uintptr_t)queue_vt[kQueue_ExecuteCommandLists]));
+    printf("  DrawInstanced       [%zu] = %s\n",
+           kList_DrawInstanced,
+           format_hex((uintptr_t)list_vt[kList_DrawInstanced]));
+    printf("  DrawIndexedInstanced [%zu] = %s\n",
+           kList_DrawIndexedInstanced,
+           format_hex((uintptr_t)list_vt[kList_DrawIndexedInstanced]));
+    printf("  Dispatch            [%zu] = %s\n",
+           kList_Dispatch,
+           format_hex((uintptr_t)list_vt[kList_Dispatch]));
 
     bool ok = true;
     if (!queue_vt[kQueue_ExecuteCommandLists]) {

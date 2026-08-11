@@ -171,13 +171,31 @@ bool SynapseCore::try_attach_d3d12_helper() {
 
     HMODULE module = LoadLibraryA(path.c_str());
     if (!module) {
+        const unsigned long err = GetLastError();
+        fprintf(stderr,
+                "SynapseCore: helper DLL load failed (%lu): %s\n",
+                err, path.c_str());
         return false;
     }
 
     auto attach = reinterpret_cast<long (__stdcall*)()>(
         GetProcAddress(module, "attach_process_hooks"));
-    if (attach) {
-        attach();
+    if (!attach) {
+        const unsigned long err = GetLastError();
+        fprintf(stderr,
+                "SynapseCore: helper attach_process_hooks not found (%lu)\n",
+                err);
+        FreeLibrary(module);
+        return false;
+    }
+
+    const long hr = attach();
+    if (FAILED(hr)) {
+        fprintf(stderr,
+                "SynapseCore: attach_process_hooks failed with 0x%08lx\n",
+                hr);
+        FreeLibrary(module);
+        return false;
     }
 
     // Keep module loaded for the lifetime of SynapseCore.

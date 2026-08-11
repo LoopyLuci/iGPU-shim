@@ -310,8 +310,8 @@ When `shader_complexity_trend > COMPLEXITY_THRESHOLD` AND `confidence > 0.82f`:
 | D3D12 helper-DLL hook API | `synapse/synapse_d3d12_helper_dll.h/.cpp`, `synapse/SynapseD3D12Helper.def` | Isolated Windows interception surface |
 | D3D12 helper-DLL lifecycle test | `synapse/tools/test_d3d12_helper_dll.cpp` | Load/attach/install/remove/detach validation |
 || D3D12 real device smoke test | `synapse/tools/test_d3d12_device_smoke.cpp` | Device/queue/list creation on real hardware |
-|| D3D12 COM vtable smoke test | `synapse/tools/test_d3d12_vtable_intercept.cpp` | Device/queue/list creation; real hook validation deferred due to MSVC instability |
-|| D3D12 vtable dump diagnostic | `synapse/tools/test_d3d12_vtable_dump.cpp` | Real vtable layout inspection for future hook index verification |
+|| D3D12 COM vtable smoke test | `synapse/tools/test_d3d12_vtable_intercept.cpp` | Device/queue/list creation; real hook validation remains disabled due MSVC in-process instability |
+|| D3D12 vtable dump diagnostic | `synapse/tools/test_d3d12_vtable_dump.cpp` | Real vtable layout inspection + layer index consistency check |
 || Headless draw bypass edge-case test | `synapse/tools/test_headless_draw_bypass_edge.cpp` | Empty workload and sequential instance WAL behavior |
 || WAL corruption recovery test | `synapse/tools/test_wal_corruption_recovery.cpp` | Malformed/truncated WAL and `simulate_crash()` recovery |
 
@@ -443,7 +443,8 @@ Replace every documented stub with a real implementation or a hardened, explicit
 | `vkCmdBindPipeline` intercept → `notify_bind_pipeline()` (live shader_hash) | `synapse/layer_entry.cpp` | ✅ |
 | `vkFreeCommandBuffers` intercept → `notify_free_cmd_buf()` (map GC) | `synapse/layer_entry.cpp` | ✅ |
 | `Analyzer::get_mip_demand_probability()` Laplace-smoothed hit-rate | `synapse/synapse_umd.h` | ✅ |
-| `SYNAPSE_REAL_DMA` CMake flag scaffolding for T1-2 KMD slot-in | `CMakeLists.txt` + `its_engine_hardened.h` | ✅ |
+|| `SYNAPSE_REAL_DMA` CMake flag scaffolding for T1-2 KMD slot-in | `CMakeLists.txt` + `its_engine_hardened.h` | ✅ |
+|| D3D12 real COM vtable patching in-process | `synapse/synapse_d3d12_layer.cpp` | ❌ Deferred — `__try` incompatible with C++ object unwinding under MSVC; helper-DLL path remains preferred Windows interception strategy |
 
 ### Remaining Open Items (Phase 8 → Phase 9)
 
