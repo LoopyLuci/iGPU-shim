@@ -121,6 +121,24 @@ static void test_mid_file_junk() {
     assert(replayed == 2 && "replay should skip the junk entry");
 }
 
+static void test_sequence_gap_detection() {
+    auto dir = fs::temp_directory_path() / "synapse_wal_gap";
+    fs::create_directories(dir);
+    auto wal_path = dir / "gap.wal";
+    fs::remove(wal_path);
+
+    append_entry(wal_path, WALEventType::Dispatch);
+    append_entry(wal_path, WALEventType::DrawIndexed);
+    append_entry(wal_path, WALEventType::Dispatch);
+
+    synapse::atomic::AtomicTelemetry telemetry(wal_path.string());
+    auto entries = telemetry.read_wal();
+    const uint64_t gaps = synapse::atomic::AtomicTelemetry::sequence_gap_count(entries);
+
+    fs::remove_all(dir);
+    assert(gaps == 0 && "contiguous writes should produce no sequence gaps");
+}
+
 int main() {
     printf("=== WAL Corruption Recovery ===\n");
 
@@ -135,6 +153,9 @@ int main() {
 
     test_mid_file_junk();
     printf("  mid-file junk: PASS\n");
+
+    test_sequence_gap_detection();
+    printf("  sequence-gap detection: PASS\n");
 
     printf("Result: PASS\n");
     return 0;

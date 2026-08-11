@@ -103,8 +103,7 @@ Output: `build_stub/Release/SynapseLayer.dll`
 ### Run Tests
 
 ```powershell
-.
-un_ctests.bat
+.\run_ctests.bat
 ```
 
 Or manually:
@@ -147,7 +146,6 @@ $env:VK_INSTANCE_LAYERS = "VK_LAYER_SYNAPSE_iGPU_Shim"
 | `test_headless_draw_bypass.exe` | Mixed draw-like operations without display server |
 | `test_schema_migration.exe` | Schema migration scaffolding unit test |
 | `test_schema_migration_integration.exe` | Legacy v0 metadata migration through CrashRecoveryManager |
-| `bench_wal_writes.exe` | WAL batch vs single-write throughput benchmark |
 | `test_d3d12_interception.exe` | D3D12 COM vtable interception unit test |
 
 ---
@@ -185,6 +183,25 @@ ctest --output-on-failure -C Release
 ```
 
 This is the canonical local CI path. Build and test are fully self-contained on the host GPU/CPU; no external runner or third-party action is required.
+
+### Windows Verification
+
+```powershell
+.\build_msvc.bat Release stub
+.\run_ctests.bat Release stub
+```
+
+`run_ctests.bat` builds, runs `ctest`, and executes `test_d3d12_vtable_dump` as a post-CTest consistency check.
+
+### Linux Verification
+
+```bash
+./run_ctests.sh Release stub
+```
+
+`run_ctests.sh` configures, builds, runs `ctest`, and executes `test_d3d12_vtable_dump` when available.
+
+> Note: Some D3D12 real-device COM vtable hook validation remains disabled on MSVC due to calling-convention instability. The helper-DLL path is the validated Windows interception strategy.
 
 ---
 

@@ -203,6 +203,21 @@ public:
         return ring_.pop();
     }
 
+    // Read WAL entries from disk for diagnostics/recovery
+    std::vector<WALEntry> read_wal() {
+        std::ifstream ifs(wal_path_, std::ios::binary);
+        std::vector<WALEntry> entries;
+        if (!ifs) return entries;
+
+        WALEntry entry;
+        while (ifs.read(reinterpret_cast<char*>(&entry), sizeof(entry))) {
+            if (is_valid_wal_entry(entry)) {
+                entries.push_back(entry);
+            }
+        }
+        return entries;
+    }
+
     // Check for crash on startup; returns number of entries to recover
     uint64_t check_recovery() {
         auto entries = read_wal();
@@ -221,7 +236,7 @@ public:
             if (ver > max_schema_ver) max_schema_ver = ver;
         }
 
-        // Log schema version for diagnostics
+        // Log schema version and sequence-gap diagnostics
         (void)max_schema_ver;
 
         clean_shutdown_ = (shutdown_seq >= max_seq && max_seq > 0);
@@ -263,6 +278,22 @@ public:
     uint64_t write_count()      const { return write_count_.load(std::memory_order_relaxed); }
     uint64_t sequence()         const { return sequence_.load(std::memory_order_relaxed); }
     bool is_clean_shutdown()    const { return clean_shutdown_.load(std::memory_order_relaxed); }
+
+    static uint64_t sequence_gap_count(const std::vector<WALEntry>& entries) noexcept {
+        if (entries.size() <= 1) return 0;
+
+        uint64_t gaps = 0;
+        uint64_t prev_seq = entries.front().sequence;
+
+        for (size_t i = 1; i < entries.size(); ++i) {
+            const uint64_t curr_seq = entries[i].sequence;
+            if (curr_seq != prev_seq + 1) {
+                ++gaps;
+            }
+            prev_seq = curr_seq;
+        }
+        return gaps;
+    }
 
 private:
     // Flush batch size — entries accumulate in memory before disk write
@@ -311,20 +342,6 @@ private:
         std::lock_guard lock(wal_mutex_);
         std::ofstream ofs(wal_path_, std::ios::binary | std::ios::app);
         if (ofs) ofs.flush();
-    }
-
-    std::vector<WALEntry> read_wal() {
-        std::ifstream ifs(wal_path_, std::ios::binary);
-        std::vector<WALEntry> entries;
-        if (!ifs) return entries;
-
-        WALEntry entry;
-        while (ifs.read(reinterpret_cast<char*>(&entry), sizeof(entry))) {
-            if (is_valid_wal_entry(entry)) {
-                entries.push_back(entry);
-            }
-        }
-        return entries;
     }
 
     void truncate_wal() {
