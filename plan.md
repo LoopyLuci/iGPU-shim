@@ -313,7 +313,13 @@ When `shader_complexity_trend > COMPLEXITY_THRESHOLD` AND `confidence > 0.82f`:
 || D3D12 COM vtable smoke test | `synapse/tools/test_d3d12_vtable_intercept.cpp` | Device/queue/list creation; real hook validation remains disabled due MSVC in-process instability |
 || D3D12 vtable dump diagnostic | `synapse/tools/test_d3d12_vtable_dump.cpp` | Real vtable layout inspection + layer index consistency check |
 || Headless draw bypass edge-case test | `synapse/tools/test_headless_draw_bypass_edge.cpp` | Empty workload and sequential instance WAL behavior |
-|| WAL corruption recovery test | `synapse/tools/test_wal_corruption_recovery.cpp` | Malformed/truncated WAL and `simulate_crash()` recovery |
+||| WAL corruption recovery test | `synapse/tools/test_wal_corruption_recovery.cpp` | Malformed/truncated WAL, `simulate_crash()`, sequence-gap injection recovery |
+|| D3D12 helper-DLL attach smoke test | `synapse/tools/test_d3d12_helper_attach.cpp` | Validates `SynapseCore` auto-attaches helper DLL on Windows |
+|| D3D12 vtable index consistency | `synapse/tools/test_d3d12_vtable_dump.cpp` | Prints real vtable; asserts `DrawInstanced=12`, `DrawIndexedInstanced=13`, `Dispatch=14` |
+|| D3D12 vtable stability | `synapse/tools/test_d3d12_vtable_stability.cpp` | Two-pass dump asserting indices/function pointers don't drift |
+|| D3D12 helper-DLL overhead | `synapse/tools/bench_d3d12_helper_dll_overhead.cpp` | `OutputDebugStringA` install/remove latency baseline |
+|| D3D12 helper-DLL multi-process | `synapse/tools/test_d3d12_helper_dll_multi_process.cpp` | Child-process spawn + exit-code validation |
+|| Layer-init helper-DLL attach | `synapse/tools/test_layer_init_helper_attach.cpp` | Windows helper-DLL attach via `SynapseCore` construction |
 
 ### Verification Test Matrix
 
