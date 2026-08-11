@@ -279,6 +279,8 @@ public:
     uint64_t sequence()         const { return sequence_.load(std::memory_order_relaxed); }
     bool is_clean_shutdown()    const { return clean_shutdown_.load(std::memory_order_relaxed); }
 
+    static constexpr size_t kWALFlushBatch = 64;
+
     static uint64_t sequence_gap_count(const std::vector<WALEntry>& entries) noexcept {
         if (entries.size() <= 1) return 0;
 
@@ -296,9 +298,6 @@ public:
     }
 
 private:
-    // Flush batch size — entries accumulate in memory before disk write
-    static constexpr size_t kWALFlushBatch = 64;
-
     std::string wal_path_;
     std::atomic<uint64_t> sequence_;
     std::atomic<uint64_t> write_count_{0};

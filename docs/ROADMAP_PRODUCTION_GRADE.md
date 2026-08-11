@@ -1662,7 +1662,7 @@ private:
 | Overhead | ✅ Verified | 254 ns GIPA / 274 ns GDPA; 5337 MB/s via `vkCmdCopyBuffer` |
 | Analyzer thread | ✅ Verified | Background analyzer consumes telemetry and emits JIT/Oracle recommendations |
 || CI | ✅ Verified | Local-only via `build_msvc.bat + ctest`; `run_ctests.bat` and `run_ctests.ps1` wrappers added; GitHub Actions removed |
-|| D3D12 backend | 🟡 In progress | `SynapseD3D12Helper.dll` builds and exports real `install_hook`/`remove_hook` APIs; helper-DLL tests pass including real API stress test, auto-attach from Vulkan layer init, multi-process validation, overhead baseline, and vtable stability; COM vtable scaffolding builds but real hook validation remains deferred due to in-process MSVC calling-convention instability |
+|| D3D12 backend | 🟡 In progress | `SynapseD3D12Helper.dll` builds and exports real `install_hook`/`remove_hook` APIs; helper-DLL tests pass including real API stress test, auto-attach from Vulkan layer init, multi-process validation, overhead baseline, vtable stability, and error-path validation; COM vtable scaffolding builds but real hook validation remains deferred due to in-process MSVC calling-convention instability |
 | Graphics draw-path | 🟡 Limited | `vkCreateWin32SurfaceKHR` succeeds; full draw submission crashes Intel driver 9466 under Parsec; headless draw bypass test passes on real hardware with per-call logging |
 | Schema migration | 🟡 In progress | `synapse/protocol/schema_migration.h` added; unit + integration tests `test_schema_migration` and `test_schema_migration_integration` pass in CTest |
 | NixOS local runner | 🟡 Scaffolded | `nix/flake.nix` present; syntax sanitized on Windows; full validation requires Nix environment |

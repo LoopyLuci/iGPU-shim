@@ -25,17 +25,21 @@ namespace {
 
 struct VTableSnapshot {
     size_t queue_execute_lists = 0;
+    size_t queue_signal = 0;
+    size_t queue_wait = 0;
     size_t list_draw_instanced = 0;
     size_t list_draw_indexed_instanced = 0;
     size_t list_dispatch = 0;
     void* queue_execute_lists_ptr = nullptr;
+    void* queue_signal_ptr = nullptr;
+    void* queue_wait_ptr = nullptr;
     void* list_draw_instanced_ptr = nullptr;
     void* list_draw_indexed_instanced_ptr = nullptr;
     void* list_dispatch_ptr = nullptr;
 };
 
-std::array<size_t, 4> kTargetQueueIndices = {3};
-std::array<size_t, 4> kTargetListIndices = {12, 13, 14};
+std::array<size_t, 6> kTargetQueueIndices = {3, 7, 8};
+std::array<size_t, 6> kTargetListIndices = {12, 13, 14};
 
 VTableSnapshot dump_vtables() {
     VTableSnapshot snap{};
@@ -74,6 +78,10 @@ VTableSnapshot dump_vtables() {
         void** queue_vt = *reinterpret_cast<void***>(queue);
         snap.queue_execute_lists_ptr = queue_vt[3];
         snap.queue_execute_lists = 3;
+        snap.queue_signal_ptr = queue_vt[7];
+        snap.queue_signal = 7;
+        snap.queue_wait_ptr = queue_vt[8];
+        snap.queue_wait = 8;
     }
 
     {
@@ -124,6 +132,16 @@ int main() {
     printf("  second list Dispatch [%zu] = %p\n",
            second.list_dispatch, second.list_dispatch_ptr);
 
+    printf("  first  queue Signal [%zu] = %p\n",
+           first.queue_signal, first.queue_signal_ptr);
+    printf("  second queue Signal [%zu] = %p\n",
+           second.queue_signal, second.queue_signal_ptr);
+
+    printf("  first  queue Wait [%zu] = %p\n",
+           first.queue_wait, first.queue_wait_ptr);
+    printf("  second queue Wait [%zu] = %p\n",
+           second.queue_wait, second.queue_wait_ptr);
+
     assert(first.queue_execute_lists == second.queue_execute_lists);
     assert(first.list_draw_instanced == second.list_draw_instanced);
     assert(first.list_draw_indexed_instanced == second.list_draw_indexed_instanced);
@@ -132,6 +150,10 @@ int main() {
     assert(first.list_draw_instanced_ptr == second.list_draw_instanced_ptr);
     assert(first.list_draw_indexed_instanced_ptr == second.list_draw_indexed_instanced_ptr);
     assert(first.list_dispatch_ptr == second.list_dispatch_ptr);
+    assert(first.queue_signal == second.queue_signal);
+    assert(first.queue_wait == second.queue_wait);
+    assert(first.queue_signal_ptr == second.queue_signal_ptr);
+    assert(first.queue_wait_ptr == second.queue_wait_ptr);
 #else
     printf("  non-Windows platform: SKIP\n");
 #endif

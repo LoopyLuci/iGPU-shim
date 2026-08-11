@@ -191,6 +191,40 @@ static void test_partial_batch_recovery() {
     assert(replayed == 2 && "replay should recover only valid entries");
 }
 
+static void test_batch_boundary_recovery() {
+    auto dir = fs::temp_directory_path() / "synapse_wal_batch_boundary";
+    fs::create_directories(dir);
+    auto wal_path = dir / "batch_boundary.wal";
+    fs::remove(wal_path);
+
+    // Write exactly kWALFlushBatch entries to force a batch flush.
+    for (size_t i = 0; i < synapse::atomic::AtomicTelemetry::kWALFlushBatch; ++i) {
+        append_entry(wal_path, WALEventType::Dispatch);
+    }
+
+    // Corrupt the last entry in the first batch.
+    std::fstream fs(wal_path, std::ios::in | std::ios::out | std::ios::binary);
+    assert(fs && "failed to open WAL for batch-boundary corruption");
+    const int64_t boundary_offset = static_cast<int64_t>(
+        (synapse::atomic::AtomicTelemetry::kWALFlushBatch - 1) * sizeof(WALEntry));
+    fs.seekp(boundary_offset, std::ios::beg);
+    WALEntry junk{};
+    junk.sequence = 0xDEAD;
+    junk.event_type = static_cast<WALEventType>(0xDEADBEEFu);
+    fs.write(reinterpret_cast<const char*>(&junk), sizeof(junk));
+    fs.close();
+
+    synapse::atomic::AtomicTelemetry telemetry(wal_path.string());
+    const uint64_t recovered = telemetry.check_recovery();
+    const uint64_t replayed = telemetry.replay();
+
+    fs::remove_all(dir);
+    assert(recovered == synapse::atomic::kWALFlushBatch - 1 &&
+           "check_recovery should skip corrupted batch-boundary entry");
+    assert(replayed == synapse::atomic::kWALFlushBatch - 1 &&
+           "replay should recover only valid entries");
+}
+
 int main() {
     printf("=== WAL Corruption Recovery ===\n");
 
@@ -214,6 +248,9 @@ int main() {
 
     test_partial_batch_recovery();
     printf("  partial-batch recovery: PASS\n");
+
+    test_batch_boundary_recovery();
+    printf("  batch-boundary recovery: PASS\n");
 
     printf("Result: PASS\n");
     return 0;

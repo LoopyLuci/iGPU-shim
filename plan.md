@@ -319,6 +319,7 @@ When `shader_complexity_trend > COMPLEXITY_THRESHOLD` AND `confidence > 0.82f`:
 || D3D12 vtable stability | `synapse/tools/test_d3d12_vtable_stability.cpp` | Two-pass dump asserting indices/function pointers don't drift |
 || D3D12 helper-DLL overhead | `synapse/tools/bench_d3d12_helper_dll_overhead.cpp` | `OutputDebugStringA` install/remove latency baseline |
 || D3D12 helper-DLL multi-process | `synapse/tools/test_d3d12_helper_dll_multi_process.cpp` | Child-process spawn + exit-code validation |
+|| D3D12 helper-DLL error-path validation | `synapse/tools/test_d3d12_helper_dll_error_path.cpp` | Invalid-argument and duplicate-hook HRESULT checks |
 || Layer-init helper-DLL attach | `synapse/tools/test_layer_init_helper_attach.cpp` | Windows helper-DLL attach via `SynapseCore` construction |
 
 ### Verification Test Matrix
