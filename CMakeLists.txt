@@ -213,16 +213,17 @@ foreach(TOOL_SRC ${TOOL_SRCS})
 endforeach()
 
 # Explicit D3D12/helper-DLL CTest registration for critical Windows paths.
+#
+# Note: test_d3d12_vtable_dump, test_synapse_core_helper_attach, and
+# test_d3d12_helper_dll_lifecycle are already registered by the tool-test
+# glob above. They are preserved here as documentation of the critical
+# Windows interception tests.
 set(SYN_D3D12_TESTS
     test_d3d12_vtable_dump
     test_synapse_core_helper_attach
     test_d3d12_helper_dll_lifecycle
 )
-foreach(SYN_D3D12_TEST ${SYN_D3D12_TESTS})
-    if(TARGET ${SYN_D3D12_TEST})
-        add_test(NAME "${SYN_D3D12_TEST}" COMMAND "${SYN_D3D12_TEST}")
-    endif()
-endforeach()
+message(STATUS "Critical D3D12 tests preserved in CTest: ${SYN_D3D12_TESTS}")
 
 # ── Install rules (optional, for system-wide layer deployment) ─────────────────
 install(TARGETS SynapseLayer
