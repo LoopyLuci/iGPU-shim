@@ -140,6 +140,10 @@ endif()
 # ── CTest targets ──────────────────────────────────────────────────────────────
 enable_testing()
 
+# D3D12 helper-DLL and vtable-consistency tests are intentionally included
+# in the tool-test glob below. They are the primary Windows interception
+# validation and must remain registered in CTest.
+
 file(GLOB TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/synapse/tests/*.cpp")
 file(GLOB TOOL_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/synapse/tools/test_*.cpp")
 
@@ -205,6 +209,18 @@ foreach(TOOL_SRC ${TOOL_SRCS})
     # Benchmark/helper tools are useful enough to run in CI.
     if(TOOL_NAME MATCHES "^bench_")
         add_test(NAME "${TOOL_NAME}" COMMAND "${TOOL_NAME}")
+    endif()
+endforeach()
+
+# Explicit D3D12/helper-DLL CTest registration for critical Windows paths.
+set(SYN_D3D12_TESTS
+    test_d3d12_vtable_dump
+    test_synapse_core_helper_attach
+    test_d3d12_helper_dll_lifecycle
+)
+foreach(SYN_D3D12_TEST ${SYN_D3D12_TESTS})
+    if(TARGET ${SYN_D3D12_TEST})
+        add_test(NAME "${SYN_D3D12_TEST}" COMMAND "${SYN_D3D12_TEST}")
     endif()
 endforeach()
 
