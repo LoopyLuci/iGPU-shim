@@ -11,7 +11,7 @@
 | Layer load overhead          | **292 ns GIPA / 291 ns GDPA** | < 10 µs |
 | Memory bandwidth (real iGPU) | **5337 MB/s** | baseline |
 | WAL telemetry                | **Verified end-to-end** | stable |
-| Test coverage                | **21/21 CTest pass** | 100% |
+| Test coverage                | **27/27 CTest pass** | 100% |
 
 ---
 
@@ -138,12 +138,16 @@ $env:VK_INSTANCE_LAYERS = "VK_LAYER_SYNAPSE_iGPU_Shim"
 | `benchmark_overhead.exe` | GDPA function resolution benchmark |
 | `bench_execution_overhead.exe` | GIPA/GDPA dispatch overhead |
 | `bench_memory_bandwidth.exe` | Real `vkCmdCopyBuffer` throughput |
+| `bench_wal_writes.exe` | WAL batch vs single-write throughput |
 | `test_thermal_monitor.exe` | Vulkan/WMI thermal probe |
 | `test_analyzer_thread.exe` | Background analyzer validation |
 | `test_analyzer_thread_edge.exe` | Analyzer edge cases |
 | `test_analyzer_wal_interaction.exe` | Analyzer–WAL interaction |
 | `test_compute_draw_emulation.exe` | Compute-path telemetry on headless iGPU |
 | `test_headless_draw_bypass.exe` | Mixed draw-like operations without display server |
+| `test_schema_migration.exe` | Schema migration scaffolding unit test |
+| `test_schema_migration_integration.exe` | Legacy v0 metadata migration through CrashRecoveryManager |
+| `bench_wal_writes.exe` | WAL batch vs single-write throughput benchmark |
 | `test_d3d12_interception.exe` | D3D12 COM vtable interception unit test |
 
 ---

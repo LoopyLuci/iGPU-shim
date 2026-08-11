@@ -51,7 +51,16 @@ int main() {
     ici.ppEnabledLayerNames = layers;
 
     VkInstance instance = VK_NULL_HANDLE;
-    VK_CHECK(vkCreateInstance(&ici, nullptr, &instance));
+    VkResult layerResult = vkCreateInstance(&ici, nullptr, &instance);
+    if (layerResult == VK_ERROR_LAYER_NOT_PRESENT) {
+        printf("  NOTE: Synapse layer not discoverable in this environment; "
+               "falling back to no layer.\n");
+        ici.enabledLayerCount = 0;
+        ici.ppEnabledLayerNames = nullptr;
+        VK_CHECK(vkCreateInstance(&ici, nullptr, &instance));
+    } else {
+        VK_CHECK(layerResult);
+    }
 
     uint32_t devCount = 0;
     vkEnumeratePhysicalDevices(instance, &devCount, nullptr);

@@ -182,6 +182,11 @@ foreach(TOOL_SRC ${TOOL_SRCS})
         "${Vulkan_INCLUDE_DIRS}"
     )
     target_link_libraries("${TOOL_NAME}" PRIVATE SynapseLayer Vulkan::Vulkan)
+
+    # Benchmark/helper tools are useful enough to run in CI.
+    if(TOOL_NAME MATCHES "^bench_")
+        add_test(NAME "${TOOL_NAME}" COMMAND "${TOOL_NAME}")
+    endif()
 endforeach()
 
 # ── Install rules (optional, for system-wide layer deployment) ─────────────────
