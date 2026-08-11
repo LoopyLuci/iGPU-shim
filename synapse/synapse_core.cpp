@@ -6,6 +6,11 @@
 #include "synapse_core.h"
 
 #include "hai_frontend_sim.h"
+
+#if defined(_WIN32)
+# include <windows.h>
+#endif
+
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -69,6 +74,10 @@ SynapseCore::SynapseCore(
 
     // Start config file watcher for live reload
     start_config_watcher();
+
+#if defined(_WIN32)
+    try_attach_d3d12_helper();
+#endif
 }
 
 SynapseCore::~SynapseCore() {
@@ -148,6 +157,32 @@ void SynapseCore::start_config_watcher() {
     });
     config_watcher_->start();
 }
+
+#if defined(_WIN32)
+void SynapseCore::try_attach_d3d12_helper() {
+    char exePath[MAX_PATH] = {0};
+    GetModuleFileNameA(nullptr, exePath, MAX_PATH);
+    std::string path = exePath;
+    const auto pos = path.find_last_of("\\/");
+    if (pos != std::string::npos) path = path.substr(0, pos + 1);
+    path += "SynapseD3D12Helper.dll";
+
+    HMODULE module = LoadLibraryA(path.c_str());
+    if (!module) {
+        return;
+    }
+
+    auto attach = reinterpret_cast<long (__stdcall*)()>(
+        GetProcAddress(module, "attach_process_hooks"));
+    if (attach) {
+        attach();
+    }
+
+    // Keep module loaded for the lifetime of SynapseCore.
+    // `detach_process_hooks` will be called from the destructor path
+    // if/when explicit teardown is added later.
+}
+#endif
 
 // ===========================================================================
 // Parse TOML-like config content and apply to AtomicConfig + Degradation

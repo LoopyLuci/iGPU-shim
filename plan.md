@@ -1,7 +1,7 @@
 # Project Synapse — Engineering Roadmap & Development Plan
 
 **Version:** 1.5.0  
-**Date:** August 8, 2026  
+**Date:** August 11, 2026  
 **Program Manager:** Advanced Architecture Group  
 **Single-Sentence Goal:** Deliver a production-grade hybrid iGPU shim that demonstrably reduces driver CPU overhead and memory bandwidth consumption, verified against measurable acceptance criteria rooted in the existing `report.json` telemetry baseline.
 
@@ -305,8 +305,12 @@ When `shader_complexity_trend > COMPLEXITY_THRESHOLD` AND `confidence > 0.82f`:
 | HAIBytecodeBuilder with HAIStats counters | `synapse/synapse_hai_builder.h` (updated) | HAI compression ratio gate |
 | JITSpecializationCache collision detection | `synapse/jit_specialization_cache.h` (updated) | Risk #8 |
 | CPU critical path benchmark harness | `synapse/tools/bench_critical_path.cpp` | Perf acceptance criterion |
-| PowerEstimator::verify() + SYNAPSE_POWER_VERIFY | `synapse/power_estimator.h` (updated) | Power validation gate |
+|| PowerEstimator::verify() + SYNAPSE_POWER_VERIFY | `synapse/power_estimator.h` (updated) | Power validation gate |
 | New-contributor guide | `docs/getting_started.md` | Documentation acceptance criterion |
+| D3D12 helper-DLL hook API | `synapse/synapse_d3d12_helper_dll.h/.cpp`, `synapse/SynapseD3D12Helper.def` | Isolated Windows interception surface |
+| D3D12 helper-DLL lifecycle test | `synapse/tools/test_d3d12_helper_dll.cpp` | Load/attach/install/remove/detach validation |
+| D3D12 real device smoke test | `synapse/tools/test_d3d12_device_smoke.cpp` | Device/queue/list creation on real hardware |
+| Headless draw bypass edge-case test | `synapse/tools/test_headless_draw_bypass_edge.cpp` | Empty workload and sequential instance WAL behavior |
 
 ### Verification Test Matrix
 

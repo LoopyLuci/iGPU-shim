@@ -196,6 +196,9 @@ private:
     // Start config file watcher (called from constructor)
     void start_config_watcher();
 
+    // Optional D3D12 helper-DLL attachment (Windows-only, best-effort).
+    void try_attach_d3d12_helper();
+
     // Parse a TOML-like config file content and apply to config_
     void apply_config_content(const std::string& content);
 
