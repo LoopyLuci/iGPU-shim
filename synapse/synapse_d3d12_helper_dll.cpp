@@ -132,10 +132,13 @@ long remove_hook(void* target, void* original) noexcept {
     }
 
     record->active = false;
-    g_ready = (g_hook_count > 1);
-    if (g_hook_count == 1) {
-        g_hook_count = 0;
+    const size_t index = (size_t)(record - g_hooks);
+    for (size_t i = index; i + 1 < g_hook_count; ++i) {
+        g_hooks[i] = g_hooks[i + 1];
     }
+    g_hooks[g_hook_count - 1] = {};
+    --g_hook_count;
+    g_ready = (g_hook_count > 0);
     return S_OK;
 }
 
