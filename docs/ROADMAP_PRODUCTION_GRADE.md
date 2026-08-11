@@ -1661,14 +1661,15 @@ private:
 | WAL telemetry | ✅ Verified | DrawIndexed + CleanShutdown events confirmed on real hardware |
 | Overhead | ✅ Verified | 254 ns GIPA / 274 ns GDPA; 5337 MB/s via `vkCmdCopyBuffer` |
 | Analyzer thread | ✅ Verified | Background analyzer consumes telemetry and emits JIT/Oracle recommendations |
-| CI | ✅ Verified | Local-only via `build_msvc.bat + ctest`; GitHub Actions removed |
-| D3D12 backend | 🟡 Scaffolded | COM vtable interception scaffolding added; no production interception yet |
-| Graphics draw-path | 🟡 Limited | `vkCreateWin32SurfaceKHR` succeeds; full draw submission crashes Intel driver 9466 under Parsec |
+| CI | ✅ Verified | Local-only via `build_msvc.bat + ctest`; `run_ctests.bat` wrapper added; GitHub Actions removed |
+| D3D12 backend | 🟡 Scaffolded | COM vtable interception scaffolding added; IAT hooking approach attempted and deferred after MSVC build failure |
+| Graphics draw-path | 🟡 Limited | `vkCreateWin32SurfaceKHR` succeeds; full draw submission crashes Intel driver 9466 under Parsec; headless draw bypass unit test passes on real hardware |
+| Schema migration | 🟡 Scaffolded | `synapse/protocol/schema_migration.h` added; unit test `test_schema_migration` passes in CTest |
 | NixOS local runner | 🟡 Scaffolded | `nix/flake.nix` added for native/VM task execution on personal hardware |
 | Thermal / power | N/A | Intel UHD 630 / driver 9466 does not expose these via available Windows user-mode APIs |
 
 ### Active Work
-1. D3D12 COM vtable interception implementation
-2. Analyzer edge-case coverage and shutdown-race hardening
-3. Alternative headless draw-path validation via compute/bandwidth telemetry
+1. Real-hardware validation of headless draw bypass and telemetry behavior
+2. Determine a stable D3D12 interception hooking approach for MSVC
+3. Expand schema migration coverage beyond unit scaffolding
 4. NixOS runner integration and local validation

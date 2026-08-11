@@ -150,6 +150,12 @@ endforeach()
 foreach(TEST_SRC ${TOOL_TEST_SRCS})
     get_filename_component(TEST_NAME "${TEST_SRC}" NAME_WE)
 
+    if(NOT TEST_NAME)
+        continue()
+    endif()
+
+    # schema_migration is a header-only protocol utility; tests belong
+    # with the tool tests because they do not require Vulkan linkage.
     add_executable("${TEST_NAME}" "${TEST_SRC}")
     target_include_directories("${TEST_NAME}" PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/synapse"
