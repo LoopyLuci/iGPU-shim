@@ -139,6 +139,29 @@ static void test_sequence_gap_detection() {
     assert(gaps == 0 && "contiguous writes should produce no sequence gaps");
 }
 
+static void test_sequence_gap_injected() {
+    auto dir = fs::temp_directory_path() / "synapse_wal_gap_injected";
+    fs::create_directories(dir);
+    auto wal_path = dir / "gap_injected.wal";
+    fs::remove(wal_path);
+
+    append_entry(wal_path, WALEventType::Dispatch);
+    append_entry(wal_path, WALEventType::DrawIndexed);
+
+    WALEntry jump{};
+    jump.sequence = 42;
+    jump.event_type = WALEventType::Dispatch;
+    write_raw_entry(wal_path, jump);
+    append_entry(wal_path, WALEventType::CleanShutdown);
+
+    synapse::atomic::AtomicTelemetry telemetry(wal_path.string());
+    auto entries = telemetry.read_wal();
+    const uint64_t gaps = synapse::atomic::AtomicTelemetry::sequence_gap_count(entries);
+
+    fs::remove_all(dir);
+    assert(gaps > 0 && "injected sequence jump should produce a gap");
+}
+
 int main() {
     printf("=== WAL Corruption Recovery ===\n");
 
@@ -156,6 +179,9 @@ int main() {
 
     test_sequence_gap_detection();
     printf("  sequence-gap detection: PASS\n");
+
+    test_sequence_gap_injected();
+    printf("  sequence-gap injected: PASS\n");
 
     printf("Result: PASS\n");
     return 0;

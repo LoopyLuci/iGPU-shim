@@ -1,9 +1,10 @@
 /**
  * @file test_d3d12_helper_dll_multi_process.cpp
- * @brief Cross-process helper-DLL smoke test.
+ * @brief Cross-process helper-DLL validation.
  *
- * Loads SynapseD3D12Helper.dll and exercises `helper_test`
- * to confirm the DLL exports and runs in this process.
+ * Spawns test_d3d12_helper_dll.exe as a child process and verifies
+ * it exits successfully. This confirms the helper DLL can be loaded
+ * and used in a separate process context.
  */
 
 #include <cstdio>
@@ -22,30 +23,41 @@ int main() {
     std::string path = exePath;
     const auto pos = path.find_last_of("\\/");
     if (pos != std::string::npos) path = path.substr(0, pos + 1);
-    path += "SynapseD3D12Helper.dll";
+    path += "test_d3d12_helper_dll.exe";
 
-    HMODULE module = LoadLibraryA(path.c_str());
-    if (!module) {
-        printf("  NOTE: helper DLL not found (%lu): %s\n", GetLastError(), path.c_str());
+    STARTUPINFOA si{};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi{};
+
+    if (!CreateProcessA(
+            path.c_str(),
+            nullptr,
+            nullptr,
+            nullptr,
+            FALSE,
+            0,
+            nullptr,
+            nullptr,
+            &si,
+            &pi)) {
+        printf("  NOTE: failed to spawn child process (%lu): %s\n",
+               GetLastError(), path.c_str());
         printf("Result: SKIP\n");
         return 0;
     }
 
-    auto test = reinterpret_cast<int (__stdcall*)(int)>(
-        GetProcAddress(module, "helper_test"));
-    if (!test) {
-        printf("  NOTE: helper_test export missing\n");
-        FreeLibrary(module);
-        printf("Result: SKIP\n");
-        return 0;
+    WaitForSingleObject(pi.hProcess, INFINITE);
+
+    DWORD exit_code = 0;
+    if (!GetExitCodeProcess(pi.hProcess, &exit_code)) {
+        exit_code = static_cast<DWORD>(-1);
     }
 
-    const int input = 7;
-    const int output = test(input);
-    printf("  helper_test(%d) = %d\n", input, output);
-    FreeLibrary(module);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
 
-    if (output == input + 1) {
+    printf("  child process exit code: %lu\n", exit_code);
+    if (exit_code == 0) {
         printf("Result: PASS\n");
         return 0;
     } else {
