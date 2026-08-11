@@ -14,9 +14,8 @@
 static std::vector<double> samples;
 
 #if defined(_WIN32)
-static void bench_install_remove(HMODULE module, const char* name, int iters) {
+static void bench_install_remove(HMODULE module, int iters) {
     using Clock = std::chrono::high_resolution_clock;
-    samples.reserve(samples.size() + static_cast<size_t>(iters) * 2);
 
     auto attach = reinterpret_cast<long (__stdcall*)()>(
         GetProcAddress(module, "attach_process_hooks"));
@@ -36,19 +35,12 @@ static void bench_install_remove(HMODULE module, const char* name, int iters) {
         detach();
         const auto t2 = Clock::now();
 
-        const double install_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-        const double remove_ms  = std::chrono::duration<double, std::milli>(t2 - t1).count();
-        samples.push_back(install_ms);
-        samples.push_back(remove_ms);
-        install_sum += install_ms;
-        remove_sum += remove_ms;
+        install_sum += std::chrono::duration<double, std::milli>(t1 - t0).count();
+        remove_sum += std::chrono::duration<double, std::milli>(t2 - t1).count();
     }
 
-    printf("  %s install avg: %.3f ms, remove avg: %.3f ms (%d iters)\n",
-           name,
-           install_sum / iters,
-           remove_sum / iters,
-           iters);
+    printf("  install avg: %.3f ms, remove avg: %.3f ms (%d iters)\n",
+           install_sum / iters, remove_sum / iters, iters);
 }
 #endif
 
@@ -70,7 +62,7 @@ int main() {
         return 0;
     }
 
-    bench_install_remove(module, "OutputDebugStringA", 64);
+    bench_install_remove(module, 64);
 
     FreeLibrary(module);
 #else
