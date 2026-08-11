@@ -11,7 +11,7 @@
 | Layer load overhead          | **292 ns GIPA / 291 ns GDPA** | < 10 µs |
 | Memory bandwidth (real iGPU) | **5337 MB/s** | baseline |
 | WAL telemetry                | **Verified end-to-end** | stable |
-| Test coverage                | **38/38 CTest pass** | 100% |
+| Test coverage                | **39/39 CTest pass** | 100% |
 
 ---
 
@@ -192,6 +192,12 @@ This is the canonical local CI path. Build and test are fully self-contained on 
 ```
 
 `run_ctests.bat` builds, runs `ctest`, and executes `test_d3d12_vtable_dump` as a post-CTest consistency check.
+
+```powershell
+.\run_ctests.ps1 -BuildType Release -BuildPreset stub
+```
+
+`run_ctests.ps1` is the structured PowerShell equivalent with `-ErrorAction Stop` and tee'd CTest logs.
 
 ### Linux Verification
 

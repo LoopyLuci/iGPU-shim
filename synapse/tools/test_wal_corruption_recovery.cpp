@@ -162,6 +162,35 @@ static void test_sequence_gap_injected() {
     assert(gaps > 0 && "injected sequence jump should produce a gap");
 }
 
+static void test_partial_batch_recovery() {
+    auto dir = fs::temp_directory_path() / "synapse_wal_partial_batch";
+    fs::create_directories(dir);
+    auto wal_path = dir / "partial_batch.wal";
+    fs::remove(wal_path);
+
+    append_entry(wal_path, WALEventType::Dispatch);
+    append_entry(wal_path, WALEventType::DrawIndexed);
+    append_entry(wal_path, WALEventType::Dispatch);
+
+    // Overwrite the middle entry to simulate a partial-batch corruption.
+    std::fstream fs(wal_path, std::ios::in | std::ios::out | std::ios::binary);
+    assert(fs && "failed to open WAL for partial-batch corruption");
+    fs.seekp(sizeof(WALEntry), std::ios::beg);
+    WALEntry junk{};
+    junk.sequence = 0xDEAD;
+    junk.event_type = static_cast<WALEventType>(0xDEADBEEFu);
+    fs.write(reinterpret_cast<const char*>(&junk), sizeof(junk));
+    fs.close();
+
+    synapse::atomic::AtomicTelemetry telemetry(wal_path.string());
+    const uint64_t recovered = telemetry.check_recovery();
+    const uint64_t replayed = telemetry.replay();
+
+    fs::remove_all(dir);
+    assert(recovered == 2 && "check_recovery should skip corrupted middle entry");
+    assert(replayed == 2 && "replay should recover only valid entries");
+}
+
 int main() {
     printf("=== WAL Corruption Recovery ===\n");
 
@@ -182,6 +211,9 @@ int main() {
 
     test_sequence_gap_injected();
     printf("  sequence-gap injected: PASS\n");
+
+    test_partial_batch_recovery();
+    printf("  partial-batch recovery: PASS\n");
 
     printf("Result: PASS\n");
     return 0;
