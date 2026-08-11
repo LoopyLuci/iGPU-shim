@@ -2,8 +2,8 @@
  * @file test_layer_init_helper_attach.cpp
  * @brief Layer-init integration test for the Windows D3D12 helper-DLL path.
  *
- * Creates a real SynapseCore instance, checks that it becomes Active,
- * and verifies the helper-DLL attach state/teardown on Windows.
+ * Uses the layer's dispatch table to create an instance and checks
+ * SynapseCore's helper-DLL attach state via the layer context.
  */
 
 #include "synapse_core.h"

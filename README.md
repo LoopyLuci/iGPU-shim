@@ -11,7 +11,7 @@
 | Layer load overhead          | **292 ns GIPA / 291 ns GDPA** | < 10 µs |
 | Memory bandwidth (real iGPU) | **5337 MB/s** | baseline |
 | WAL telemetry                | **Verified end-to-end** | stable |
-| Test coverage                | **29/29 CTest pass** | 100% |
+| Test coverage                | **38/38 CTest pass** | 100% |
 
 ---
 
