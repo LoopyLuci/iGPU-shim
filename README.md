@@ -253,3 +253,4 @@ D3D12 design note:
   - `ID3D12GraphicsCommandList::DrawIndexedInstanced` at `[13]`
   - `ID3D12GraphicsCommandList::Dispatch` at `[14]`
 - `SynapseCore` now logs helper-DLL load/attach failures with Win32 error codes, stores the loaded `HMODULE`, and calls `detach_process_hooks` + `FreeLibrary` during destruction.
+- Tested Windows SDK: `10.0.26100.0` (`d3d12.h` layout matches dumped indices above).
