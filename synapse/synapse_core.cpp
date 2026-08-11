@@ -76,7 +76,9 @@ SynapseCore::SynapseCore(
     start_config_watcher();
 
 #if defined(_WIN32)
-    try_attach_d3d12_helper();
+    if (!try_attach_d3d12_helper()) {
+        // Helper DLL not present or failed to attach; layer continues without D3D12 interception.
+    }
 #endif
 }
 
@@ -159,7 +161,7 @@ void SynapseCore::start_config_watcher() {
 }
 
 #if defined(_WIN32)
-void SynapseCore::try_attach_d3d12_helper() {
+bool SynapseCore::try_attach_d3d12_helper() {
     char exePath[MAX_PATH] = {0};
     GetModuleFileNameA(nullptr, exePath, MAX_PATH);
     std::string path = exePath;
@@ -169,7 +171,7 @@ void SynapseCore::try_attach_d3d12_helper() {
 
     HMODULE module = LoadLibraryA(path.c_str());
     if (!module) {
-        return;
+        return false;
     }
 
     auto attach = reinterpret_cast<long (__stdcall*)()>(
@@ -181,6 +183,7 @@ void SynapseCore::try_attach_d3d12_helper() {
     // Keep module loaded for the lifetime of SynapseCore.
     // `detach_process_hooks` will be called from the destructor path
     // if/when explicit teardown is added later.
+    return true;
 }
 #endif
 

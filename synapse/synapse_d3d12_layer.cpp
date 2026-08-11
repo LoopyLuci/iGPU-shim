@@ -71,19 +71,18 @@ void restore_impl(void** object_vtable, size_t index, void* original) {
     object_vtable[index] = original;
 }
 
-/**
- * @brief Trampoline: ExecuteCommandLists hook.
- */
+/** @brief Trampoline: ExecuteCommandLists hook. */
 void __cdecl trampoline_execute_command_lists(
     ID3D12CommandQueue* queue,
     unsigned int NumLists,
     ID3D12CommandList* const* ppLists) noexcept
 {
-    // Call original vtable entry.
-    auto vt = *reinterpret_cast<void***>(queue);
-    using Fn = void(__cdecl*)(ID3D12CommandQueue*, unsigned int, ID3D12CommandList* const*);
-    Fn original = reinterpret_cast<Fn>(vt[kQueue_ExecuteCommandLists]);
-    original(queue, NumLists, ppLists);
+    auto it = g_queue_hooks.find(queue);
+    if (it != g_queue_hooks.end() && it->second.original) {
+        using Fn = void(__cdecl*)(ID3D12CommandQueue*, unsigned int, ID3D12CommandList* const*);
+        Fn original = reinterpret_cast<Fn>(it->second.original);
+        original(queue, NumLists, ppLists);
+    }
 
     if (g_queue_hook) {
         g_queue_hook(static_cast<void*>(queue),
@@ -91,9 +90,7 @@ void __cdecl trampoline_execute_command_lists(
     }
 }
 
-/**
- * @brief Trampoline: DrawIndexedInstanced hook.
- */
+/** @brief Trampoline: DrawIndexedInstanced hook. */
 void __cdecl trampoline_draw_indexed_instanced(
     ID3D12GraphicsCommandList* list,
     unsigned int IndexCountPerInstance,
@@ -102,51 +99,51 @@ void __cdecl trampoline_draw_indexed_instanced(
     INT BaseVertexLocation,
     unsigned int StartInstanceLocation) noexcept
 {
-    auto vt = *reinterpret_cast<void***>(list);
-    using Fn = void(__cdecl*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int, INT, unsigned int);
-    Fn original = reinterpret_cast<Fn>(vt[kList_DrawIndexedInstanced]);
-    original(list, IndexCountPerInstance, InstanceCount, StartIndexLocation,
-             BaseVertexLocation, StartInstanceLocation);
+    auto it = g_list_hooks.find(list);
+    if (it != g_list_hooks.end() && it->second.original) {
+        using Fn = void(__cdecl*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int, INT, unsigned int);
+        Fn original = reinterpret_cast<Fn>(it->second.original);
+        original(list, IndexCountPerInstance, InstanceCount, StartIndexLocation,
+                 BaseVertexLocation, StartInstanceLocation);
+    }
 
     if (g_list_hook) {
         g_list_hook(static_cast<void*>(list), nullptr);
     }
 }
 
-/**
- * @brief Trampoline: DrawInstanced hook.
- */
+/** @brief Trampoline: DrawInstanced hook. */
 void __cdecl trampoline_draw_instanced(
     ID3D12GraphicsCommandList* list,
     unsigned int VertexCountPerInstance,
-    unsigned int InstanceCount,
     unsigned int StartVertexLocation,
     unsigned int StartInstanceLocation) noexcept
 {
-    auto vt = *reinterpret_cast<void***>(list);
-    using Fn = void(__cdecl*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int, unsigned int);
-    Fn original = reinterpret_cast<Fn>(vt[kList_DrawInstanced]);
-    original(list, VertexCountPerInstance, InstanceCount, StartVertexLocation,
-             StartInstanceLocation);
+    auto it = g_list_hooks.find(list);
+    if (it != g_list_hooks.end() && it->second.original) {
+        using Fn = void(__cdecl*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int);
+        Fn original = reinterpret_cast<Fn>(it->second.original);
+        original(list, VertexCountPerInstance, StartVertexLocation, StartInstanceLocation);
+    }
 
     if (g_list_hook) {
         g_list_hook(static_cast<void*>(list), nullptr);
     }
 }
 
-/**
- * @brief Trampoline: Dispatch hook.
- */
+/** @brief Trampoline: Dispatch hook. */
 void __cdecl trampoline_dispatch(
     ID3D12GraphicsCommandList* list,
     unsigned int ThreadGroupCountX,
     unsigned int ThreadGroupCountY,
     unsigned int ThreadGroupCountZ) noexcept
 {
-    auto vt = *reinterpret_cast<void***>(list);
-    using Fn = void(__cdecl*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int);
-    Fn original = reinterpret_cast<Fn>(vt[kList_Dispatch]);
-    original(list, ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
+    auto it = g_list_hooks.find(list);
+    if (it != g_list_hooks.end() && it->second.original) {
+        using Fn = void(__cdecl*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int);
+        Fn original = reinterpret_cast<Fn>(it->second.original);
+        original(list, ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
+    }
 
     if (g_list_hook) {
         g_list_hook(static_cast<void*>(list), nullptr);

@@ -14,17 +14,27 @@ if errorlevel 1 (
 )
 
 pushd build_stub
+set CTEST_LOG=%TEMP%\ctest_run_%BUILD_TYPE%.log
 echo [run_ctests] ctest --output-on-failure -C %BUILD_TYPE%
-ctest --output-on-failure -C %BUILD_TYPE%
+ctest --output-on-failure -C %BUILD_TYPE% > "%CTEST_LOG%" 2>&1
 set CTEST_RC=%ERRORLEVEL%
+
+for /f "tokens=2 delims= " %%a in ('ctest -N -C %BUILD_TYPE% ^| findstr /R "Total Tests:"') do set TOTAL=%%a
+for /f "tokens=3 delims= " %%a in ('findstr /C:"tests passed" "%CTEST_LOG%"') do set PASSED=%%a
+for /f "tokens=3 delims= " %%a in ('findstr /C:"tests failed" "%CTEST_LOG%"') do set FAILED=%%a
+
+echo [run_ctests] Total : %TOTAL%
+echo [run_ctests] Passed: %PASSED%
+echo [run_ctests] Failed: %FAILED%
+
+if %CTEST_RC% NEQ 0 (
+    echo [run_ctests] FAIL
+    echo [run_ctests] Failure summary:
+    findstr /R /C:"^[0-9][0-9]*\/[0-9][0-9]* Test" "%CTEST_LOG%" | findstr /V "Passed" || echo [run_ctests] No failed test details found in log
+    echo [run_ctests] Log: %CTEST_LOG%
+) else (
+    echo [run_ctests] PASS
+)
 popd
 
-echo [run_ctests] Build type : %BUILD_TYPE%
-echo [run_ctests] Build preset: %BUILD_PRESET%
-echo [run_ctests] ctest exit code: %CTEST_RC%
-if %CTEST_RC% EQU 0 (
-    echo [run_ctests] PASS
-) else (
-    echo [run_ctests] FAIL
-)
 exit /b %CTEST_RC%
