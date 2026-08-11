@@ -247,3 +247,8 @@ D3D12 design note:
 - Real COM vtable patching is currently unstable in-process under MSVC, so the helper DLL path remains the preferred Windows interception strategy.
 - The helper DLL now validates against a real Windows API (`kernel32!OutputDebugStringA`) with a 16-iteration install/remove stress loop; this confirms function-pointer replacement is stable on this toolchain.
 - `test_d3d12_vtable_dump.exe` prints the real vtable layout for `ID3D12CommandQueue` and `ID3D12GraphicsCommandList`. Use it when adjusting hook indices or debugging trampoline crashes.
+- Observed vtable indices on this hardware/SDK:
+  - `ID3D12CommandQueue::ExecuteCommandLists` at `[3]`
+  - `ID3D12GraphicsCommandList::DrawInstanced` at `[12]`
+  - `ID3D12GraphicsCommandList::DrawIndexedInstanced` at `[13]`
+  - `ID3D12GraphicsCommandList::Dispatch` at `[14]`

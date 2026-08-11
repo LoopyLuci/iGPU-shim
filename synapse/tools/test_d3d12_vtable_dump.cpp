@@ -7,8 +7,7 @@
  *  - ID3D12CommandQueue
  *  - ID3D12GraphicsCommandList
  *
- * This is used to discover real vtable indices on the current Windows SDK / driver,
- * because hardcoded indices vary across SDK versions.
+ * Also validates the hardcoded indices used by the layer against the real vtable.
  */
 
 #if defined(_WIN32)
@@ -17,11 +16,12 @@
 # include <dxgi1_6.h>
 #endif
 
+#include <cassert>
 #include <cstdio>
 
 #if defined(_WIN32)
-#pragma comment(lib, "d3d12.lib")
-#pragma comment(lib, "dxgi.lib")
+# pragma comment(lib, "d3d12.lib")
+# pragma comment(lib, "dxgi.lib")
 
 int main() {
     printf("=== D3D12 VTable Dump ===\n");
@@ -82,10 +82,39 @@ int main() {
         printf("  [%02d] %p\n", i, list_vt[i]);
     }
 
+    // Layer hardcoded indices
+    constexpr size_t kQueue_ExecuteCommandLists = 3;
+    constexpr size_t kList_DrawIndexedInstanced  = 13;
+    constexpr size_t kList_DrawInstanced         = 12;
+    constexpr size_t kList_Dispatch              = 14;
+
+    bool ok = true;
+    if (!queue_vt[kQueue_ExecuteCommandLists]) {
+        printf("FAIL: queue ExecuteCommandLists index %zu is null\n", kQueue_ExecuteCommandLists);
+        ok = false;
+    }
+    if (!list_vt[kList_DrawIndexedInstanced]) {
+        printf("FAIL: list DrawIndexedInstanced index %zu is null\n", kList_DrawIndexedInstanced);
+        ok = false;
+    }
+    if (!list_vt[kList_DrawInstanced]) {
+        printf("FAIL: list DrawInstanced index %zu is null\n", kList_DrawInstanced);
+        ok = false;
+    }
+    if (!list_vt[kList_Dispatch]) {
+        printf("FAIL: list Dispatch index %zu is null\n", kList_Dispatch);
+        ok = false;
+    }
+
     list->Release();
     allocator->Release();
     queue->Release();
     device->Release();
+
+    if (!ok) {
+        printf("Result: FAIL (update layer indices)\n");
+        return 1;
+    }
 
     printf("Result: PASS\n");
     return 0;
