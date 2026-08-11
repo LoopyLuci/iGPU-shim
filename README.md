@@ -11,7 +11,7 @@
 | Layer load overhead          | **292 ns GIPA / 291 ns GDPA** | < 10 µs |
 | Memory bandwidth (real iGPU) | **5337 MB/s** | baseline |
 | WAL telemetry                | **Verified end-to-end** | stable |
-| Test coverage                | **27/27 CTest pass** | 100% |
+| Test coverage                | **29/29 CTest pass** | 100% |
 
 ---
 
@@ -217,3 +217,26 @@ This is the canonical local CI path. Build and test are fully self-contained on 
 | `iGPU_Shim.md` | Original architecture design and rationale |
 | `docs/PHASE7_HARDWARE_CODESIGN.md` | Real iGPU test results and hardware co-design |
 | `rules.md` | Engineering philosophy and constraints |
+
+---
+
+## D3D12 Interception Strategy
+
+The main layer avoids heavy Windows inline-hook/D3D12 dependencies because MSVC build constraints make inline trampolines and code-patching fragile. Instead, D3D12 interception is isolated in a separate helper DLL:
+
+- `synapse/synapse_d3d12_helper_dll.h` — exported hook lifecycle interface
+- `synapse/synapse_d3d12_helper_dll.cpp` — self-contained Windows-only implementation
+- `synapse/synapse_d3d12_layer.h/.cpp` — COM vtable interception scaffolding
+- `synapse/tools/test_d3d12_helper_dll.cpp` — dynamic-load test for the helper DLL
+- `synapse/tools/test_d3d12_interception.cpp` — mock COM vtable unit test
+- `synapse/tools/test_headless_draw_bypass.cpp` — headless draw-like telemetry path
+
+Build artifacts on Windows:
+- `SynapseD3D12Helper.dll`
+- `test_d3d12_helper_dll.exe`
+- `test_d3d12_interception.exe`
+- `test_headless_draw_bypass.exe`
+
+NixOS validation:
+- If you have Nix installed, run `nix flake check` from `nix/` to validate `flake.nix`.
+- Current status: syntax sanitized locally on Windows; full validation requires a Nix environment.

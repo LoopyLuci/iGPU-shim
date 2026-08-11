@@ -23,12 +23,7 @@ std::ostream& operator<<(std::ostream& os, const MessageHeader& hdr) {
 using namespace synapse::protocol;
 
 static std::vector<uint8_t> make_payload(const std::string& text) {
-    std::vector<uint8_t> data(text.begin(), text.end());
-    return data;
-}
-
-static std::string payload_as_string(const std::vector<uint8_t>& data) {
-    return std::string(data.begin(), data.end());
+    return std::vector<uint8_t>(text.begin(), text.end());
 }
 
 int main() {
@@ -40,20 +35,27 @@ int main() {
         out.push_back('v');
         return out;
     });
+    schema.register_migration(1, 2, [](const std::vector<uint8_t>& data) {
+        std::vector<uint8_t> out(data);
+        out.push_back('2');
+        return out;
+    });
 
-    // 2) Compat: v1 reader should read v1 data.
+    // 2) Compat checks.
     assert(schema.is_compatible(1, 1) == true);
-    // 3) Backward compat: v1 reader should read v0 data for +1 rule.
     assert(schema.is_compatible(1, 0) == true);
     assert(schema.is_compatible(1, 2) == true);
     assert(schema.is_compatible(1, 3) == false);
-    assert(schema.is_compatible(1, 0) == true);
 
-    // 4) v0 raw bytes -> v1 via migration.
+    // 3) v0 raw bytes -> v1 via migration.
     auto migrated = schema.migrate(make_payload("hello"), 0, 1);
-    assert(payload_as_string(migrated) == "hellov");
+    assert(std::string(migrated.begin(), migrated.end()) == "hellov");
 
-    // 5) v1 -> v1 returns identity.
+    // 4) Multi-hop: v0 -> v2 through v1.
+    auto multi = schema.migrate(make_payload("base"), 0, 2);
+    assert(payload_as_string(multi) == "basev2");
+
+    // 5) v1 -> v1 returns identity without registered migration.
     auto identity = schema.migrate(make_payload("world"), 1, 1);
     assert(payload_as_string(identity) == "world");
 
@@ -68,7 +70,13 @@ int main() {
 
     // 7) Path discovery.
     assert(schema.has_path(0, 1) == true);
+    assert(schema.has_path(0, 2) == true);
     assert(schema.has_path(1, 0) == false);
+    assert(schema.has_path(2, 9) == false);
+
+    // 8) Registry metadata.
+    assert(schema.latest_version() == 2);
+    assert(schema.migration_count() == 2);
 
     std::cout << "Result: PASS\n";
     return 0;

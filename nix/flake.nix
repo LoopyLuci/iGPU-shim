@@ -1,5 +1,8 @@
+# ==============================================================================
+# nix/flake.nix  –  Synapse iGPU Shim local runner
+# ==============================================================================
 {
-  "description": "Synapse iGPU Shim — local runner flake for NixOS";
+  description = "Synapse iGPU Shim — local runner flake for NixOS";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -23,7 +26,6 @@
             OVMF
             virglrenderer
             spice
-            win-spice
             wget
             curl
             unzip
@@ -36,7 +38,6 @@
           shellHook = ''
             echo "Synapse local runner environment ready."
             echo "Native build:     build-native"
-            echo "Windows VM build: build-windows-vm"
             echo "Run tests:        test-native"
           '';
 
@@ -48,15 +49,6 @@
             cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release
             ninja
             ctest --output-on-failure
-          '';
-
-          build-windows-vm = ''
-            echo "[windows-vm] Building Synapse in Windows VM..."
-            echo "Prerequisites:"
-            echo "  1. Install qemu, OVMF, and Windows 10/11 ISO"
-            echo "  2. Create VM with: nix run .#create-windows-vm"
-            echo "  3. Start VM:        nix run .#start-windows-vm"
-            echo "  4. Inside VM:       .\\build_msvc.bat Release stub"
           '';
         };
 

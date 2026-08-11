@@ -118,6 +118,21 @@ add_custom_command(TARGET SynapseLayer POST_BUILD
     COMMENT "Deploying VkLayer_synapse.json alongside the shared library"
 )
 
+# ── D3D12 helper DLL (Windows-only) ──────────────────────────────────────────
+# Isolated hook container to avoid MSVC inline-hook fragility in the main layer.
+if (WIN32)
+    add_library(SynapseD3D12Helper SHARED
+        "${CMAKE_CURRENT_SOURCE_DIR}/synapse/synapse_d3d12_helper_dll.cpp"
+    )
+    set_target_properties(SynapseD3D12Helper PROPERTIES
+        OUTPUT_NAME "SynapseD3D12Helper"
+        POSITION_INDEPENDENT_CODE OFF
+    )
+    target_include_directories(SynapseD3D12Helper PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/synapse"
+    )
+endif()
+
 # ── CTest targets ──────────────────────────────────────────────────────────────
 enable_testing()
 
