@@ -12,6 +12,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <fstream>
 #include <filesystem>
 #include <vector>
 
@@ -33,11 +34,21 @@ static void test_truncated_tail() {
     append_entry(wal_path, WALEventType::Dispatch);
     append_entry(wal_path, WALEventType::DrawIndexed);
 
-    // TODO: truncated-tail recovery path is currently unstable in read_wal().
-    // Disabled until corruption-aware filtering is implemented.
-    printf("  truncated tail: SKIP (read_wal truncation handling pending)\n");
+    // Truncate file to mid-second-entry.
+    std::fstream fs(wal_path, std::ios::in | std::ios::out | std::ios::binary);
+    assert(fs && "failed to open WAL for truncation");
+    fs.seekp(sizeof(WALEntry) / 2, std::ios::beg);
+    WALEntry zero{};
+    fs.write(reinterpret_cast<const char*>(&zero), sizeof(zero));
+    fs.close();
+
+    synapse::atomic::AtomicTelemetry telemetry(wal_path.string());
+    const uint64_t recovered = telemetry.check_recovery();
+    const uint64_t replayed = telemetry.replay();
 
     fs::remove_all(dir);
+    assert(recovered == 1 && "check_recovery should report only the readable entry");
+    assert(replayed == 1 && "replay should only replay readable entries");
 }
 
 static void test_simulate_crash() {

@@ -235,13 +235,15 @@ The main layer avoids heavy Windows inline-hook/D3D12 dependencies because MSVC 
 Build artifacts on Windows:
 - `SynapseD3D12Helper.dll`
 - `test_d3d12_helper_dll.exe`
+- `test_d3d12_helper_attach.exe`
+- `test_d3d12_vtable_dump.exe`
+- `test_d3d12_vtable_intercept.exe`
+- `test_d3d12_device_smoke.exe`
 - `test_d3d12_interception.exe`
 - `test_headless_draw_bypass.exe`
-
-NixOS validation:
-- If you have Nix installed, run `nix flake check` from `nix/` to validate `flake.nix`.
-- Current status: syntax sanitized locally on Windows; full validation requires a Nix environment.
+- `test_headless_draw_bypass_edge.exe`
 
 D3D12 design note:
 - Real COM vtable patching is currently unstable in-process under MSVC, so the helper DLL path remains the preferred Windows interception strategy.
-- The current helper DLL validates lifecycle and exports successfully, but in-process function-pointer replacement is only exercised against bookkeeping and a mock hook target. Real device entry-point interception via this path is still exploratory.
+- The helper DLL now validates against a real Windows API (`kernel32!OutputDebugStringA`) with a 16-iteration install/remove stress loop; this confirms function-pointer replacement is stable on this toolchain.
+- `test_d3d12_vtable_dump.exe` prints the real vtable layout for `ID3D12CommandQueue` and `ID3D12GraphicsCommandList`. Use it when adjusting hook indices or debugging trampoline crashes.

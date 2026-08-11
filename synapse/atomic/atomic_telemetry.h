@@ -67,6 +67,43 @@ struct WALEntry {
 
 static_assert(sizeof(WALEntry) == 264, "WALEntry must be fixed-size for WAL I/O");
 
+static constexpr uint32_t kWALKnownSchemaVersions[] = {0, 1};
+
+static bool is_valid_wal_event_type(WALEventType type) noexcept {
+    switch (type) {
+        case WALEventType::None:
+        case WALEventType::DrawIndexed:
+        case WALEventType::Draw:
+        case WALEventType::Dispatch:
+        case WALEventType::PushConstants:
+        case WALEventType::BindDescriptorSets:
+        case WALEventType::BindPipeline:
+        case WALEventType::CreateImage:
+        case WALEventType::DestroyImage:
+        case WALEventType::BindShadersEXT:
+        case WALEventType::BackendChoice:
+        case WALEventType::DVFSChange:
+        case WALEventType::ThermalEvent:
+        case WALEventType::MLCheckpoint:
+        case WALEventType::SessionReport:
+        case WALEventType::CleanShutdown:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static bool is_valid_wal_entry(const WALEntry& entry) noexcept {
+    if (!is_valid_wal_event_type(entry.event_type)) return false;
+    if (entry.data_size > sizeof(WALEntry::data)) return false;
+
+    const uint32_t ver = entry.get_schema_version();
+    for (uint32_t known : kWALKnownSchemaVersions) {
+        if (ver == known) return true;
+    }
+    return false;
+}
+
 // In-memory ring buffer for fast reads (lock-free single-producer single-consumer)
 class TelemetryRing {
 public:
@@ -283,7 +320,9 @@ private:
 
         WALEntry entry;
         while (ifs.read(reinterpret_cast<char*>(&entry), sizeof(entry))) {
-            entries.push_back(entry);
+            if (is_valid_wal_entry(entry)) {
+                entries.push_back(entry);
+            }
         }
         return entries;
     }
