@@ -47,9 +47,9 @@ D3D12Hook g_list_hook    = nullptr;
 constexpr size_t kQueue_ExecuteCommandLists = 10;
 
 // ID3D12GraphicsCommandList vtable indices
-constexpr size_t kList_DrawIndexedInstanced = 15;
-constexpr size_t kList_DrawInstanced        = 16;
-constexpr size_t kList_Dispatch             = 25;
+constexpr size_t kList_DrawIndexedInstanced = 13;
+constexpr size_t kList_DrawInstanced        = 12;
+constexpr size_t kList_Dispatch             = 14;
 
 void*& vtable_slot(ID3D12CommandQueue* queue, size_t index) {
     return *reinterpret_cast<void**>(*reinterpret_cast<void***>(queue) + index);
@@ -72,14 +72,14 @@ void restore_impl(void** object_vtable, size_t index, void* original) {
 }
 
 /** @brief Trampoline: ExecuteCommandLists hook. */
-void __cdecl trampoline_execute_command_lists(
+void __stdcall trampoline_execute_command_lists(
     ID3D12CommandQueue* queue,
     unsigned int NumLists,
     ID3D12CommandList* const* ppLists) noexcept
 {
     auto it = g_queue_hooks.find(queue);
     if (it != g_queue_hooks.end() && it->second.original) {
-        using Fn = void(__cdecl*)(ID3D12CommandQueue*, unsigned int, ID3D12CommandList* const*);
+        using Fn = void(__stdcall*)(ID3D12CommandQueue*, unsigned int, ID3D12CommandList* const*);
         Fn original = reinterpret_cast<Fn>(it->second.original);
         original(queue, NumLists, ppLists);
     }
@@ -91,7 +91,7 @@ void __cdecl trampoline_execute_command_lists(
 }
 
 /** @brief Trampoline: DrawIndexedInstanced hook. */
-void __cdecl trampoline_draw_indexed_instanced(
+void __stdcall trampoline_draw_indexed_instanced(
     ID3D12GraphicsCommandList* list,
     unsigned int IndexCountPerInstance,
     unsigned int InstanceCount,
@@ -101,7 +101,7 @@ void __cdecl trampoline_draw_indexed_instanced(
 {
     auto it = g_list_hooks.find(list);
     if (it != g_list_hooks.end() && it->second.original) {
-        using Fn = void(__cdecl*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int, INT, unsigned int);
+        using Fn = void(__stdcall*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int, INT, unsigned int);
         Fn original = reinterpret_cast<Fn>(it->second.original);
         original(list, IndexCountPerInstance, InstanceCount, StartIndexLocation,
                  BaseVertexLocation, StartInstanceLocation);
@@ -113,7 +113,7 @@ void __cdecl trampoline_draw_indexed_instanced(
 }
 
 /** @brief Trampoline: DrawInstanced hook. */
-void __cdecl trampoline_draw_instanced(
+void __stdcall trampoline_draw_instanced(
     ID3D12GraphicsCommandList* list,
     unsigned int VertexCountPerInstance,
     unsigned int StartVertexLocation,
@@ -121,7 +121,7 @@ void __cdecl trampoline_draw_instanced(
 {
     auto it = g_list_hooks.find(list);
     if (it != g_list_hooks.end() && it->second.original) {
-        using Fn = void(__cdecl*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int);
+        using Fn = void(__stdcall*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int);
         Fn original = reinterpret_cast<Fn>(it->second.original);
         original(list, VertexCountPerInstance, StartVertexLocation, StartInstanceLocation);
     }
@@ -132,7 +132,7 @@ void __cdecl trampoline_draw_instanced(
 }
 
 /** @brief Trampoline: Dispatch hook. */
-void __cdecl trampoline_dispatch(
+void __stdcall trampoline_dispatch(
     ID3D12GraphicsCommandList* list,
     unsigned int ThreadGroupCountX,
     unsigned int ThreadGroupCountY,
@@ -140,7 +140,7 @@ void __cdecl trampoline_dispatch(
 {
     auto it = g_list_hooks.find(list);
     if (it != g_list_hooks.end() && it->second.original) {
-        using Fn = void(__cdecl*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int);
+        using Fn = void(__stdcall*)(ID3D12GraphicsCommandList*, unsigned int, unsigned int, unsigned int);
         Fn original = reinterpret_cast<Fn>(it->second.original);
         original(list, ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
     }

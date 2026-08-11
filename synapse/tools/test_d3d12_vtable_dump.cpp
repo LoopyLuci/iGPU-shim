@@ -1,13 +1,14 @@
 /**
- * @file test_d3d12_vtable_intercept.cpp
- * @brief D3D12 COM vtable interception smoke test.
+ * @file test_d3d12_vtable_dump.cpp
+ * @brief D3D12 COM vtable index dump diagnostic.
  *
- * Creates a real D3D12 device, command queue, and graphics command list.
+ * Creates a real D3D12 device, command queue, allocator, and graphics command list,
+ * then prints the first 32 vtable function pointers for:
+ *  - ID3D12CommandQueue
+ *  - ID3D12GraphicsCommandList
  *
- * NOTE: Real COM vtable hook validation is currently disabled because
- * in-process vtable patching crashes on this MSVC toolchain. The helper-DLL
- * function-pointer replacement path remains the preferred Windows interception
- * strategy until the calling-convention/vtable-patching instability is resolved.
+ * This is used to discover real vtable indices on the current Windows SDK / driver,
+ * because hardcoded indices vary across SDK versions.
  */
 
 #if defined(_WIN32)
@@ -16,19 +17,14 @@
 # include <dxgi1_6.h>
 #endif
 
-#include <cassert>
 #include <cstdio>
 
 #if defined(_WIN32)
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 
-#include "synapse_d3d12_layer.h"
-
-using namespace synapse::d3d12;
-
 int main() {
-    printf("=== D3D12 COM VTable Intercept Smoke ===\n");
+    printf("=== D3D12 VTable Dump ===\n");
 
     ID3D12Device* device = nullptr;
     HRESULT hr = D3D12CreateDevice(
@@ -74,34 +70,17 @@ int main() {
         return 0;
     }
 
-    hr = initialize();
-    if (FAILED(hr)) {
-        list->Release();
-        allocator->Release();
-        queue->Release();
-        device->Release();
-        printf("NOTE: synapse::d3d12::initialize() failed with 0x%08lx; skipping.\n", hr);
-        printf("Result: PASS\n");
-        return 0;
+    printf("ID3D12CommandQueue vtable (first 16 entries):\n");
+    void** queue_vt = *reinterpret_cast<void***>(queue);
+    for (int i = 0; i < 16; ++i) {
+        printf("  [%02d] %p\n", i, queue_vt[i]);
     }
 
-    hr = enable_d3d12_interception(true);
-    if (FAILED(hr)) {
-        list->Release();
-        allocator->Release();
-        queue->Release();
-        device->Release();
-        printf("NOTE: enable_d3d12_interception(true) failed with 0x%08lx; skipping.\n", hr);
-        printf("Result: PASS\n");
-        return 0;
+    printf("ID3D12GraphicsCommandList vtable (first 32 entries):\n");
+    void** list_vt = *reinterpret_cast<void***>(list);
+    for (int i = 0; i < 32; ++i) {
+        printf("  [%02d] %p\n", i, list_vt[i]);
     }
-
-    // Real vtable patching is currently disabled due to MSVC calling-convention
-    // instability in-process. This test validates device/queue/allocator/list
-    // creation and layer initialization only.
-    printf("  NOTE: skipping real vtable hook install/validate due to MSVC instability\n");
-
-    shutdown();
 
     list->Release();
     allocator->Release();
@@ -113,7 +92,7 @@ int main() {
 }
 #else
 int main() {
-    printf("NOTE: D3D12 vtable intercept test skipped on non-Windows platform.\n");
+    printf("NOTE: D3D12 vtable dump skipped on non-Windows platform.\n");
     printf("Result: PASS\n");
     return 0;
 }

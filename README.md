@@ -243,4 +243,5 @@ NixOS validation:
 - Current status: syntax sanitized locally on Windows; full validation requires a Nix environment.
 
 D3D12 design note:
+- Real COM vtable patching is currently unstable in-process under MSVC, so the helper DLL path remains the preferred Windows interception strategy.
 - The current helper DLL validates lifecycle and exports successfully, but in-process function-pointer replacement is only exercised against bookkeeping and a mock hook target. Real device entry-point interception via this path is still exploratory.
