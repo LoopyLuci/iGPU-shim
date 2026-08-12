@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Synapse iGPU Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-0: #0b0f14;
+      --bg-1: #11161d;
+      --bg-2: #161c24;
+      --bg-3: #1c242d;
+      --border: #24303b;
+      --text: #e6edf3;
+      --muted: #9aa7b2;
+      --accent: #4f8cff;
+      --accent-2: #22d3a7;
+      --danger: #ff6b6b;
+      --warning: #f0c246;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: var(--bg-0);
+      color: var(--text);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      grid-template-rows: 56px 1fr;
+      height: 100vh;
+    }
+
+    .topbar {
+      grid-column: 1 / -1;
+      background: var(--bg-1);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+    .topbar .brand {
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .topbar .status {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .sidebar {
+      background: var(--bg-1);
+      border-right: 1px solid var(--border);
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .sidebar button {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: left;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .sidebar button:hover { background: var(--bg-2); }
+    .sidebar button.active {
+      background: var(--bg-3);
+      border-color: var(--border);
+    }
+
+    .content {
+      background: var(--bg-0);
+      overflow: auto;
+      padding: 18px 20px 28px;
+    }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+    .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+    .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+    .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid.cols-1 { grid-template-columns: 1fr; }
+
+    .card {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      min-height: 120px;
+    }
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .card .value {
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .card .sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 260px;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .pill {
+      background: var(--bg-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .pill.primary { background: var(--accent); color: white; border-color: transparent; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+      color: var(--text);
+    }
+    th { color: var(--muted); font-weight: 600; }
+
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .setting-row label { color: var(--muted); font-size: 13px; }
+    .setting-row input, .setting-row select {
+      background: var(--bg-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: var(--bg-3);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: .2s ease;
+    }
+    .toast.show { opacity: 1; transform: none; }
+
+    @media (max-width: 1100px) {
+      .grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 760px) {
+      .layout { grid-template-columns: 1fr; grid-template-rows: 56px 44px 1fr; }
+      .sidebar { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="topbar">
+      <div class="brand">Synapse iGPU Dashboard</div>
+      <div class="status" id="status">Ready</div>
+    </div>
+    <nav class="sidebar" aria-label="Primary">
+      <button data-section="overview" class="active">Overview</button>
+      <button data-section="telemetry">Telemetry</button>
+      <button data-section="its">Texture Streaming</button>
+      <button data-section="power">Power &amp; Thermal</button>
+      <button data-section="backend">Backends</button>
+      <button data-section="wal">WAL</button>
+      <button data-section="settings">Settings</button>
+      <button data-section="tools">Tools</button>
+    </nav>
+    <main class="content">
+
+      <section id="overview" class="section active">
+        <div class="toolbar">
+          <div>
+            <strong>Overview</strong>
+            <span style="color:var(--muted); margin-left:8px;">Top-level health</span>
+          </div>
+          <div>
+            <button class="pill primary" id="refreshReport">Refresh</button>
+            <button class="pill" id="autoRefresh">Auto-refresh: off</button>
+          </div>
+        </div>
+        <div class="grid cols-4">
+          <div class="card"><h3>Report status</h3><div class="value" id="ovReport">--</div><div class="sub" id="ovReportSub">Loading</div></div>
+          <div class="card"><h3>WAL</h3><div class="value" id="ovWal">--</div><div class="sub">Recent entries</div></div>
+          <div class="card"><h3>Hardware blocklist</h3><div class="value" id="ovBlock">--</div><div class="sub">Draw telemetry</div></div>
+          <div class="card"><h3>Layer</h3><div class="value" id="ovLayer">--</div><div class="sub">Runtime state</div></div>
+        </div>
+        <div class="grid cols-2" style="margin-top:14px;">
+          <div class="card"><h3>Backend routing</h3><div class="chart-wrap"><canvas id="chartBackend"></canvas></div></div>
+          <div class="card"><h3>Power</h3><div class="chart-wrap"><canvas id="chartPower"></canvas></div></div>
+        </div>
+      </section>
+
+      <section id="telemetry" class="section">
+        <div class="toolbar"><strong>Telemetry</strong><button class="pill primary" id="refreshTelemetry">Refresh</button></div>
+        <div class="grid cols-2">
+          <div class="card"><h3>JIT</h3><div class="chart-wrap"><canvas id="chartJit"></canvas></div></div>
+          <div class="card"><h3>HAI</h3><div class="chart-wrap"><canvas id="chartHai"></canvas></div></div>
+        </div>
+        <div class="grid cols-1" style="margin-top:14px;">
+          <div class="card"><h3>Machine learning</h3><div class="chart-wrap"><canvas id="chartMl"></canvas></div></div>
+        </div>
+      </section>
+
+      <section id="its" class="section">
+        <div class="toolbar"><strong>Texture Streaming</strong><button class="pill primary" id="refreshIts">Refresh</button></div>
+        <div class="grid cols-3">
+          <div class="card"><h3>Predictor accuracy</h3><div class="chart-wrap"><canvas id="chartItsAccuracy"></canvas></div></div>
+          <div class="card"><h3>Cache metrics</h3><div class="chart-wrap"><canvas id="chartItsCache"></canvas></div></div>
+          <div class="card"><h3>Horizon analysis</h3><div class="chart-wrap"><canvas id="chartHorizon"></canvas></div></div>
+        </div>
+      </section>
+
+      <section id="power" class="section">
+        <div class="toolbar"><strong>Power &amp; Thermal</strong><button class="pill primary" id="refreshPower">Refresh</button></div>
+        <div class="grid cols-2">
+          <div class="card"><h3>DVFS transitions</h3><div class="chart-wrap"><canvas id="chartDvfs"></canvas></div></div>
+          <div class="card"><h3>Thermal events</h3><div class="chart-wrap"><canvas id="chartThermal"></canvas></div></div>
+        </div>
+      </section>
+
+      <section id="backend" class="section">
+        <div class="toolbar"><strong>Backends</strong><button class="pill primary" id="refreshBackend">Refresh</button></div>
+        <div class="grid cols-1">
+          <div class="card"><h3>Backend routing summary</h3><div class="chart-wrap"><canvas id="chartBackendDetail"></canvas></div></div>
+        </div>
+      </section>
+
+      <section id="wal" class="section">
+        <div class="toolbar"><strong>WAL</strong><button class="pill primary" id="refreshWal">Refresh</button></div>
+        <div class="card">
+          <table id="walTable">
+            <thead><tr><th>#</th><th>Type</th><th>Size</th><th>Time</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="settings" class="section">
+        <div class="toolbar">
+          <div><strong>Settings</strong><span style="color:var(--muted); margin-left:8px;">User preferences and defaults</span></div>
+          <div><button class="pill primary" id="saveSettings">Save</button></div>
+        </div>
+        <div class="card">
+          <div id="settingsForm"></div>
+        </div>
+      </section>
+
+      <section id="tools" class="section">
+        <div class="toolbar"><strong>Tools</strong></div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Tests</h3>
+            <table>
+              <thead><tr><th>Tool</th><th>Purpose</th></tr></thead>
+              <tbody>
+                <tr><td>test_wal_telemetry</td><td>WAL end-to-end verification</td></tr>
+                <tr><td>test_compute_draw_emulation</td><td>Compute-path telemetry</td></tr>
+                <tr><td>test_hardware_blocklist</td><td>Hardware allowlist validation</td></tr>
+                <tr><td>test_schema_migration_multihop</td><td>Schema migration chains</td></tr>
+                <tr><td>test_d3d12_helper_real_device_hooks</td><td>Real D3D12 hooks</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card"><h3>Benchmarks</h3>
+            <table>
+              <thead><tr><th>Bench</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td>bench_memory_bandwidth</td><td>Real vkCmdCopyBuffer throughput</td></tr>
+                <tr><td>bench_execution_overhead</td><td>GIPA/GDPA dispatch overhead</td></tr>
+                <tr><td>bench_d3d12_helper_multi_hook_overhead</td><td>Helper-DLL hook overhead</td></tr>
+                <tr><td>bench_wal_writes</td><td>WAL batch vs single-write throughput</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <script>
+    const API_BASE = location.origin;
+    let charts = {};
+    let ws = null;
+    let autoRefresh = false;
+    let settings = {};
+
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 1800);
+    }
+
+    async function api(path, opts = {}) {
+      const res = await fetch(API_BASE + path, opts);
+      if (path === '/api/report') return res.json();
+      return res;
+    }
+
+    function setActiveSection(id) {
+      document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === id));
+      document.querySelectorAll('.sidebar button').forEach(b => b.classList.toggle('active', b.dataset.section === id));
+    }
+
+    document.querySelectorAll('.sidebar button').forEach(btn => {
+      btn.addEventListener('click', () => setActiveSection(btn.dataset.section));
+    });
+
+    function val(obj, path, def = 0) {
+      return path.split('.').reduce((o, k) => (o && o[k] !== undefined ? o[k] : def), obj);
+    }
+
+    function makeChart(id, type, data, opts = {}) {
+      if (charts[id]) charts[id].destroy();
+      const ctx = document.getElementById(id);
+      if (!ctx) return null;
+      charts[id] = new Chart(ctx, { type, data, options: { ...opts, responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#9aa7b2' } } }, scales: { x: { ticks: { color: '#9aa7b2' }, grid: { color: '#1c242d' } }, y: { ticks: { color: '#9aa7b2' }, grid: { color: '#1c242d' } } } } });
+      return charts[id];
+    }
+
+    function safeColor(v) {
+      if (typeof v !== 'number') return '#4f8cff';
+      if (v >= 0.9) return '#22d3a7';
+      if (v >= 0.7) return '#f0c246';
+      return '#ff6b6b';
+    }
+
+    async function refreshOverview(report) {
+      if (!report) report = await api('/api/report');
+      const platform = val(report, 'synapse.platform');
+      const its = val(report, 'synapse.its_engine');
+      const backend = val(report, 'synapse.backend_routing_summary');
+      const power = val(report, 'synapse.power_report');
+      const settingsApi = settings;
+
+      document.getElementById('ovReport').textContent = report._generated ? 'Loaded' : 'Missing';
+      document.getElementById('ovReportSub').textContent = report._schema_version ? `schema ${report._schema_version}` : (report._error || 'No data');
+      document.getElementById('ovWal').textContent = '--';
+      document.getElementById('ovBlock').textContent = settingsApi.telemetry && settingsApi.telemetry.drawTelemetryEnabled ? 'On' : 'Blocked';
+      document.getElementById('ovLayer').textContent = 'Active';
+
+      makeChart('chartBackend', 'doughnut', {
+        labels: ['JIT', 'HAI', 'Oracle'],
+        datasets: [{ data: [backend.jit_dispatches || 0, backend.hai_dispatches || 0, backend.oracle_dispatches || 0], backgroundColor: ['#4f8cff', '#22d3a7', '#f0c246'], borderWidth: 0 }]
+      }, { cutout: '58%', plugins: { legend: { position: 'bottom' } } });
+
+      makeChart('chartPower', 'bar', {
+        labels: ['joules_saved', 'avg_mw_saved', 'battery_extension'],
+        datasets: [{ label: 'Power', data: [power.joules_saved || 0, power.avg_milliwatts_saved_at_60fps || 0, power.battery_extension_factor || 0], backgroundColor: ['#4f8cff', '#22d3a7', '#f0c246'] }]
+      });
+    }
+
+    async function refreshTelemetry(report) {
+      if (!report) report = await api('/api/report');
+      const jit = val(report, 'synapse.jit_pipeline');
+      const hai = val(report, 'synapse.hai_pipeline');
+      const ml = val(report, 'synapse.ml_model');
+
+      makeChart('chartJit', 'bar', {
+        labels: ['cold_fallbacks', 'cache_hits', 'over_budget'],
+        datasets: [{ data: [jit.cold_cache_fallbacks || 0, jit.cache_hits || 0, jit.over_stutter_budget ? 1 : 0], backgroundColor: ['#ff6b6b', '#22d3a7', '#f0c246'] }]
+      });
+
+      makeChart('chartHai', 'bar', {
+        labels: ['delta_draws', 'full_draws', 'compression'],
+        datasets: [{ data: [hai.delta_draws_emitted || 0, hai.full_draws_emitted || 0, hai.compression_ratio || 1], backgroundColor: ['#4f8cff', '#22d3a7', '#f0c246'] }]
+      });
+
+      const sel = ml.selection_percent || {};
+      makeChart('chartMl', 'polarArea', {
+        labels: ['JIT', 'HAI', 'Oracle'],
+        datasets: [{ data: [sel.jit || 0, sel.hai || 0, sel.oracle || 0], backgroundColor: ['rgba(79,140,255,.75)', 'rgba(34,211,167,.75)', 'rgba(240,194,70,.75)'] }]
+      });
+    }
+
+    async function refreshIts(report) {
+      if (!report) report = await api('/api/report');
+      const its = val(report, 'synapse.its_engine');
+      const predictor = its.predictor_stats || {};
+      const cache = its.cache_metrics || {};
+      const horizons = (its.horizon_analysis && its.horizon_analysis.horizons) || [];
+
+      makeChart('chartItsAccuracy', 'line', {
+        labels: ['accuracy', 'waste'],
+        datasets: [{ data: [predictor.accuracy_rate || 0, predictor.waste_rate || 0], borderColor: '#4f8cff', backgroundColor: 'rgba(79,140,255,.2)', fill: true }]
+      });
+
+      makeChart('chartItsCache', 'doughnut', {
+        labels: ['hit_rate', 'sync_stalls'],
+        datasets: [{ data: [cache.hit_rate || 0, cache.sync_stalls || 0], backgroundColor: ['#22d3a7', '#ff6b6b'], borderWidth: 0 }]
+      }, { cutout: '58%', plugins: { legend: { position: 'bottom' } } });
+
+      makeChart('chartHorizon', 'bar', {
+        labels: horizons.map(h => `${h.window_frames}f`),
+        datasets: [{ label: 'energy_efficiency', data: horizons.map(h => h.energy_efficiency || 0), backgroundColor: '#4f8cff' }]
+      });
+    }
+
+    async function refreshPower(report) {
+      if (!report) report = await api('/api/report');
+      const dvfs = val(report, 'synapse.dvfs');
+      const thermal = val(report, 'synapse.thermal');
+      const power = val(report, 'synapse.power_report');
+
+      makeChart('chartDvfs', 'bar', {
+        labels: ['transitions', 'emergency', 'hysteresis'],
+        datasets: [{ data: [dvfs.total_transitions || 0, dvfs.emergency_overrides || 0, dvfs.hysteresis_drops || 0], backgroundColor: ['#4f8cff', '#ff6b6b', '#f0c246'] }]
+      });
+
+      makeChart('chartThermal', 'line', {
+        labels: ['mitigation', 'stability', 'proactive'],
+        datasets: [{ data: [thermal.thermal_mitigation_events || 0, thermal.stability_overrides || 0, thermal.proactive_boosts || 0], borderColor: '#22d3a7', backgroundColor: 'rgba(34,211,167,.2)', fill: true, tension: 0.3 }]
+      });
+    }
+
+    async function refreshBackend(report) {
+      if (!report) report = await api('/api/report');
+      const backend = val(report, 'synapse.backend_routing_summary');
+      makeChart('chartBackendDetail', 'bar', {
+        labels: ['JIT', 'HAI', 'Oracle', 'Total'],
+        datasets: [{ label: 'Dispatches', data: [backend.jit_dispatches || 0, backend.hai_dispatches || 0, backend.oracle_dispatches || 0, backend.total_draw_calls || 0], backgroundColor: ['#4f8cff', '#22d3a7', '#f0c246', '#9aa7b2'] }]
+      });
+    }
+
+    async function refreshWal() {
+      const data = await api('/api/wal?limit=100');
+      const tbody = document.querySelector('#walTable tbody');
+      tbody.innerHTML = '';
+      (data.entries || []).forEach((row, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${i + 1}</td><td>${row.type || '--'}</td><td>${row.size || 0}</td><td>${row.time ? new Date(row.time).toLocaleTimeString() : '--'}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function loadSettings() {
+      const data = await api('/api/settings');
+      if (data && !data._error) settings = data;
+      renderSettings();
+    }
+
+    function renderSettings() {
+      const container = document.getElementById('settingsForm');
+      const rows = [];
+      const recurse = (prefix, obj) => {
+        Object.entries(obj).forEach(([k, v]) => {
+          const name = prefix ? `${prefix}.${k}` : k;
+          if (typeof v === 'boolean') {
+            rows.push(`<div class="setting-row"><label>${name}</label><input type="checkbox" data-key="${name}" ${v ? 'checked' : ''} /></div>`);
+          } else if (typeof v === 'number') {
+            rows.push(`<div class="setting-row"><label>${name}</label><input type="number" data-key="${name}" value="${v}" /></div>`);
+          } else if (typeof v === 'string') {
+            rows.push(`<div class="setting-row"><label>${name}</label><input type="text" data-key="${name}" value="${v}" /></div>`);
+          } else if (Array.isArray(v)) {
+            rows.push(`<div class="setting-row"><label>${name}</label><input disabled value="[array]" /></div>`);
+          } else if (v && typeof v === 'object') {
+            recurse(name, v);
+          }
+        });
+      };
+      recurse('', settings);
+      container.innerHTML = rows.join('');
+    }
+
+    async function saveSettings() {
+      const inputs = document.querySelectorAll('#settingsForm input[data-key]');
+      const out = {};
+      inputs.forEach(input => {
+        const key = input.dataset.key;
+        let parts = key.split('.');
+        let cur = out;
+        for (let i = 0; i < parts.length - 1; i++) cur = cur[parts[i]] = cur[parts[i]] || {};
+        const leaf = parts[parts.length - 1];
+        if (input.type === 'checkbox') cur[leaf] = input.checked;
+        else if (input.type === 'number') cur[leaf] = Number(input.value);
+        else cur[leaf] = input.value;
+      });
+      const res = await api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) });
+      if (res.ok) toast('Settings saved');
+      else toast('Save failed');
+    }
+
+    async function refreshAll() {
+      const report = await api('/api/report');
+      await refreshOverview(report);
+      await refreshTelemetry(report);
+      await refreshIts(report);
+      await refreshPower(report);
+      await refreshBackend(report);
+      await refreshWal();
+    }
+
+    function connectWs() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(`${proto}://${location.host}/ws`);
+      ws.onmessage = async (evt) => {
+        const msg = JSON.parse(evt.data);
+        if (msg.type === 'report') await refreshOverview(msg.data);
+        else if (msg.type === 'settings') { settings = msg.data; renderSettings(); }
+        else if (msg.type === 'wal') await refreshWal();
+      };
+      ws.onclose = () => setTimeout(connectWs, 1500);
+    }
+
+    document.getElementById('refreshReport').addEventListener('click', refreshOverview);
+    document.getElementById('refreshTelemetry').addEventListener('click', () => refreshTelemetry());
+    document.getElementById('refreshIts').addEventListener('click', () => refreshIts());
+    document.getElementById('refreshPower').addEventListener('click', () => refreshPower());
+    document.getElementById('refreshBackend').addEventListener('click', () => refreshBackend());
+    document.getElementById('refreshWal').addEventListener('click', refreshWal);
+    document.getElementById('saveSettings').addEventListener('click', saveSettings);
+
+    document.getElementById('autoRefresh').addEventListener('click', async () => {
+      autoRefresh = !autoRefresh;
+      document.getElementById('autoRefresh').textContent = autoRefresh ? 'Auto-refresh: on' : 'Auto-refresh: off';
+      if (autoRefresh) {
+        setInterval(refreshAll, 1000);
+      }
+    });
+
+    (async () => {
+      await loadSettings();
+      await refreshAll();
+      connectWs();
+    })();
+  </script>
+</body>
+</html>
