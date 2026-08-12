@@ -13,6 +13,7 @@
 #include "its_engine_hardened.h"
 #include "hash_utils.h"
 #include "telemetry_types.h"
+#include "hardware/hardware_blocklist.h"
 #include "ml/ml_sub_api.h"
 #include "ml/reward_calculator.h"
 #include "power_estimator.h"
@@ -110,6 +111,10 @@ public:
     bool is_feature_available(const std::string& feature) const {
         return degrade_.is_available(feature);
     }
+
+    // Hardware blocklist: disable draw telemetry on known-broken configs
+    void set_draw_telemetry_allowed(bool allowed) { draw_telemetry_allowed_ = allowed; }
+    bool is_draw_telemetry_allowed() const { return draw_telemetry_allowed_; }
 
     ExecutionBackend current_analyzer_recommendation() const {
         return analyzer_.current_recommendation();
@@ -259,6 +264,7 @@ public:
     std::unique_ptr<recovery::CrashRecoveryManager> recovery_;
     std::unique_ptr<hotreload::ConfigWatcher> config_watcher_;
     std::string data_dir_;
+    bool draw_telemetry_allowed_{true};  // Set to false if hardware is blocklisted
 
 #if defined(_WIN32)
     HMODULE d3d12_helper_module_ = nullptr;

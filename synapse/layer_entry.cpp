@@ -224,6 +224,33 @@ VKAPI_ATTR VkResult VKAPI_CALL SynapseLayer_vkCreateDevice(
         orig_push_constants, orig_bind_desc_sets, orig_bind_shaders,
         data_dir);
 
+    // Hardware blocklist check: query GPU properties and disable draw telemetry
+    // if the hardware is known to crash on GPU work recording.
+    {
+        auto get_phys_props = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties>(
+            next_gipa(VK_NULL_HANDLE, "vkGetPhysicalDeviceProperties"));
+        if (get_phys_props) {
+            VkPhysicalDeviceProperties props{};
+            get_phys_props(physicalDevice, &props);
+
+            synapse::hardware::GPUConfig gpu{};
+            gpu.vendor_id = props.vendorID;
+            gpu.device_id = props.deviceID;
+            // Pack driver version: major<<22 | minor<<12 | patch
+            gpu.driver_version = synapse::hardware::pack_driver_version(
+                VK_VERSION_MAJOR(props.driverVersion),
+                VK_VERSION_MINOR(props.driverVersion),
+                VK_VERSION_PATCH(props.driverVersion));
+            gpu.driver_string = std::to_string(VK_VERSION_MAJOR(props.driverVersion)) + "."
+                + std::to_string(VK_VERSION_MINOR(props.driverVersion)) + "."
+                + std::to_string(VK_VERSION_PATCH(props.driverVersion));
+
+            if (!synapse::hardware::is_draw_telemetry_allowed(gpu)) {
+                ctx.core->set_draw_telemetry_allowed(false);
+            }
+        }
+    }
+
 #if defined(_WIN32)
     ctx.core->try_attach_d3d12_helper();
 #endif
