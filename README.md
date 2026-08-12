@@ -271,7 +271,7 @@ D3D12 design note:
 - The helper DLL now validates against a real Windows API (`kernel32!OutputDebugStringA`) with a 16-iteration install/remove stress loop; this confirms function-pointer replacement is stable on this toolchain.
 - `test_d3d12_vtable_dump.exe` prints the real vtable layout for `ID3D12CommandQueue` and `ID3D12GraphicsCommandList`. Use it when adjusting hook indices or debugging trampoline crashes.
 - Observed vtable indices on this hardware/SDK:
-  - `ID3D12CommandQueue::ExecuteCommandLists` at `[3]`
+  - `ID3D12CommandQueue::ExecuteCommandLists` at `[10]` (NOT `[3]` — the vtable dump tool's label was incorrect; the SDK inheritance chain is IUnknown[0-2] + ID3D12Object[3-6] + ID3D12DeviceChild[7]; ID3D12CommandQueue methods start immediately after, at [8])
   - `ID3D12GraphicsCommandList::DrawInstanced` at `[12]`
   - `ID3D12GraphicsCommandList::DrawIndexedInstanced` at `[13]`
   - `ID3D12GraphicsCommandList::Dispatch` at `[14]`
@@ -283,7 +283,7 @@ D3D12 design note:
 
 ## Known Limitations
 
-- **Intel UHD 630 driver crash**: Full graphics draw submission (`vkCmdDraw` inside a render pass) crashes the Intel UHD 630 driver (27.20.100.9466) before WAL telemetry can be observed. Compute dispatch and `vkCmdCopyBuffer` work. Use a virtual display adapter or remote desktop session to test the graphics draw path.
+- **Intel UHD 630 driver crash**: Any GPU work recording through the Vulkan command buffer crashes the Intel UHD 630 driver (27.20.100.9466). This includes `vkCmdDispatch` (compute), `vkCmdDraw`/`vkCmdDrawIndexed` (graphics inside a render pass), and `vkCmdCopyBuffer`. Only queue submit with an **empty** command buffer succeeds. The driver crash occurs at command buffer recording time, not at submit. As a result, real draw/dispatch telemetry is not achievable on this hardware; the layer's WAL/compute-emulation path (`test_compute_draw_emulation`, `test_compute_draw_full_telemetry`) remains the validated substitute. An active remote desktop session (Parsec) does not resolve the issue.
 - **MSVC vtable-patching instability**: In-process COM vtable patching crashes (`exit 139`) under MSVC on this toolchain. The helper-DLL function-pointer replacement path is the validated Windows interception strategy.
 - **Headless limitations**: Graphics-pipeline submission requires a display server. Without one, the Intel driver may crash before the layer can intercept.
 - **Thermal/power APIs**: Intel UHD 630 / driver 9466 does not expose power or thermal data via available Windows user-mode APIs.
