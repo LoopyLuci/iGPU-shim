@@ -1663,15 +1663,16 @@ private:
 | Analyzer thread | ✅ Verified | Background analyzer consumes telemetry and emits JIT/Oracle recommendations |
 || CI | ✅ Verified | Local-only via `build_msvc.bat + ctest`; `run_ctests.bat` and `run_ctests.ps1` wrappers added; GitHub Actions removed |
 || D3D12 backend | ✅ Verified | `SynapseD3D12Helper.dll` exports real `install_hook`/`remove_hook`; helper-DLL tests pass including real API stress, auto-attach, multi-process, overhead baseline, error-path, 1000-cycle stress, multi-target sequential hooks, and real-device vtable hooking via helper DLL; vtable dump/stability confirm correct indices (ExecuteCommandLists=10, DrawInstanced=12, DrawIndexedInstanced=13, Dispatch=14); `test_d3d12_multi_hook.exe` validates all 4 hooks fire on a real D3D12 device |
-|| Graphics draw-path | 🔴 Blocked | **Any GPU work recording crashes the Intel UHD 630 driver (27.20.100.9466).** `test_vulkan_draw_path_crash.exe` isolates the crash to command buffer recording: empty submit succeeds, but `vkCmdDispatch`, `vkCmdDraw`, and `vkCmdCopyBuffer` all crash at record time. An active Parsec session does not help. Real draw/dispatch telemetry is not achievable on this hardware; WAL/compute-emulation path remains the validated substitute. |
+|| Graphics draw-path | 🟡 Hardware-gated | Runtime blocklist (`synapse/hardware/hardware_blocklist.h`) disables draw telemetry on known-broken configs (Intel UHD 630 / driver 9466) and falls back to compute/bandwidth telemetry as the production default. Draw telemetry is allowed on unknown/newer hardware unless blocklisted. `test_vulkan_draw_path_crash.exe` isolates the crash boundary. |
 | Schema migration | ✅ Verified | `synapse/protocol/schema_migration.h`; unit + integration tests + WAL integration test `test_wal_schema_migration` all pass in CTest; v0→v1 migration path confirmed for `RecoveryMetadata` |
 | NixOS local runner | 🟡 Scaffolded | `nix/flake.nix` present; syntax sanitized on Windows; full validation requires Nix environment |
 | Thermal / power | N/A | Intel UHD 630 / driver 9466 does not expose these via available Windows user-mode APIs |
 
 ### Active Work
 1. ~~Validate helper-DLL hooking on real D3D12 device vtable slots~~ ✅ DONE (`test_d3d12_helper_real_device_hooks.exe`, commit fca5148)
-2. Expand schema migration coverage beyond v0→v1 (multi-hop v2+ migration paths)
-3. `hardware_fence_completed()` real KMD paths: Linux (`sync_wait`) + Windows (`D3DKMTWait`) — behind `SYNAPSE_REAL_FENCE` guard
-4. `trigger_async_load()` real DMA — behind `SYNAPSE_REAL_DMA` guard
-5. Linux/Clang 17 build validation
-6. Vulkan draw-path: accept compute/bandwidth telemetry as production substitute; document hardware-boundary decision
+2. ~~Expand schema migration coverage beyond v0→v1~~ ✅ DONE (`test_schema_migration_multihop`, v0→v1→v2→v3)
+3. ~~Vulkan draw-path: accept compute/bandwidth telemetry as production substitute~~ ✅ DONE (runtime hardware blocklist + README/ROADMAP docs)
+4. `hardware_fence_completed()` real KMD paths: Linux (`sync_wait`) + Windows (`D3DKMTWait`) — behind `SYNAPSE_REAL_FENCE` guard
+5. `trigger_async_load()` real DMA — behind `SYNAPSE_REAL_DMA` guard
+6. Linux/Clang 17 build validation — code structure verified; actual build requires Linux host
+7. NixOS runner integration and local validation on NixOS host

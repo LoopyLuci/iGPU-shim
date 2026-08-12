@@ -397,6 +397,16 @@ void SynapseCore::handle_draw_indexed(
     int32_t  vertexOffset,
     uint32_t firstInstance)
 {
+    // Check if draw telemetry is allowed on this hardware
+    if (!is_draw_telemetry_allowed()) {
+        if (orig_draw_indexed_) {
+            orig_draw_indexed_(cmd, indexCount, instanceCount,
+                               firstIndex, vertexOffset, firstInstance);
+        }
+        wal_log(atomic::WALEventType::DrawIndexed);
+        return;
+    }
+
     // Check if JIT feature is available
     if (!degrade_.is_available("jit")) {
         // Degrade: use Oracle directly
@@ -484,6 +494,15 @@ void SynapseCore::handle_draw(
     uint32_t firstVertex,
     uint32_t firstInstance)
 {
+    // Check if draw telemetry is allowed on this hardware
+    if (!is_draw_telemetry_allowed()) {
+        if (orig_draw_) {
+            orig_draw_(cmd, vertexCount, instanceCount, firstVertex, firstInstance);
+        }
+        wal_log(atomic::WALEventType::Draw);
+        return;
+    }
+
     WorkloadSignature sig = capture_current_signature(cmd, vertexCount);
     sig.is_compute_dispatch = false;
 
