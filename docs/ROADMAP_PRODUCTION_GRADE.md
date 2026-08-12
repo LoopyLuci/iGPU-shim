@@ -1662,15 +1662,13 @@ private:
 | Overhead | ✅ Verified | 254 ns GIPA / 274 ns GDPA; 5337 MB/s via `vkCmdCopyBuffer` |
 | Analyzer thread | ✅ Verified | Background analyzer consumes telemetry and emits JIT/Oracle recommendations |
 || CI | ✅ Verified | Local-only via `build_msvc.bat + ctest`; `run_ctests.bat` and `run_ctests.ps1` wrappers added; GitHub Actions removed |
-|| D3D12 backend | 🟡 In progress | `SynapseD3D12Helper.dll` builds and exports real `install_hook`/`remove_hook` APIs; helper-DLL tests pass including real API stress test, auto-attach from Vulkan layer init, multi-process validation, overhead baseline, error-path, and 1000-cycle stress; vtable dump/stability confirm correct indices (ExecuteCommandLists=10, DrawInstanced=12, DrawIndexedInstanced=13, Dispatch=14); COM vtable scaffolding builds and `test_d3d12_multi_hook.exe` validates all 4 hooks fire on a real D3D12 device |
+|| D3D12 backend | ✅ Verified | `SynapseD3D12Helper.dll` exports real `install_hook`/`remove_hook`; helper-DLL tests pass including real API stress, auto-attach, multi-process, overhead baseline, error-path, 1000-cycle stress, multi-target sequential hooks, and real-device vtable hooking via helper DLL; vtable dump/stability confirm correct indices (ExecuteCommandLists=10, DrawInstanced=12, DrawIndexedInstanced=13, Dispatch=14); `test_d3d12_multi_hook.exe` validates all 4 hooks fire on a real D3D12 device |
 || Graphics draw-path | 🔴 Blocked | **Any GPU work recording crashes the Intel UHD 630 driver (27.20.100.9466).** `test_vulkan_draw_path_crash.exe` isolates the crash to command buffer recording: empty submit succeeds, but `vkCmdDispatch`, `vkCmdDraw`, and `vkCmdCopyBuffer` all crash at record time. An active Parsec session does not help. Real draw/dispatch telemetry is not achievable on this hardware; WAL/compute-emulation path remains the validated substitute. |
-| Schema migration | 🟡 In progress | `synapse/protocol/schema_migration.h` added; unit + integration tests `test_schema_migration` and `test_schema_migration_integration` pass in CTest |
+| Schema migration | ✅ Verified | `synapse/protocol/schema_migration.h`; unit + integration tests + WAL integration test `test_wal_schema_migration` all pass in CTest; v0→v1 migration path confirmed for `RecoveryMetadata` |
 | NixOS local runner | 🟡 Scaffolded | `nix/flake.nix` present; syntax sanitized on Windows; full validation requires Nix environment |
 | Thermal / power | N/A | Intel UHD 630 / driver 9466 does not expose these via available Windows user-mode APIs |
 
 ### Active Work
-1. Expand D3D12 helper-DLL interception from function-pointer replacement to real device entry-point coverage
-2. Add mock-D3D12 device end-to-end test once stable hook path is confirmed
-3. Real-hardware validation of headless draw bypass with extended logging
-4. Expand schema migration coverage beyond unit/integration scaffolding
-5. NixOS runner integration and local validation on NixOS host
+1. Validate helper-DLL hooking on real D3D12 device vtable slots (helper DLL → real device entry-point coverage)
+2. Expand schema migration coverage beyond v0→v1 (multi-hop v2+ migration paths)
+3. NixOS runner integration and local validation on NixOS host

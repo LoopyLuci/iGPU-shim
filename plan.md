@@ -322,6 +322,9 @@ When `shader_complexity_trend > COMPLEXITY_THRESHOLD` AND `confidence > 0.82f`:
 || D3D12 helper-DLL error-path validation | `synapse/tools/test_d3d12_helper_dll_error_path.cpp` | Invalid-argument and duplicate-hook HRESULT checks |
 || D3D12 helper-DLL stress test | `synapse/tools/test_d3d12_helper_dll_stress.cpp` | 1000-cycle attach→install→remove→detach |
 || Layer-init helper-DLL attach | `synapse/tools/test_layer_init_helper_attach.cpp` | Windows helper-DLL attach via `SynapseCore` construction |
+|| WAL→SchemaMigration integration test | `synapse/tools/test_wal_schema_migration.cpp` | Legacy v0 `.meta` migrated to v1; WAL entries with schema_version=1 replayed through migrated `CrashRecoveryManager` |
+|| D3D12 helper-DLL multi-target hook test | `synapse/tools/test_d3d12_helper_multi_hook.cpp` | 4 independent function-pointer targets installed/removed sequentially; each fires; idempotent re-install |
+|| D3D12 helper-DLL multi-hook overhead bench | `synapse/tools/bench_d3d12_helper_multi_hook_overhead.cpp` | 1000-iteration, 4-hook round-trip: ~43 µs/hook (23.5 µs install + 19.5 µs remove) |
 
 ### Verification Test Matrix
 
