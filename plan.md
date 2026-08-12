@@ -402,6 +402,53 @@ Add an in-process contextual-bandit ML router to replace the rule-based `Schedul
 | `hardware_fence_completed()` real MMIO query | Medium | Stub returns `true` unconditionally |
 | Vulkan layer manifest (`.json`) + `vkGetInstanceProcAddr` export | Critical | Required for native hardware |
 | Build system: `CMakeLists.txt` (replaces scatter of `.vcxproj`) | High | Required for Linux CI |
+| Compute/bandwidth telemetry as production default | High | ✅ Validated substitute for blocklisted draw-path hardware |
+| Runtime hardware blocklist for draw telemetry | High | ✅ `synapse/hardware/hardware_blocklist.h` + `is_draw_telemetry_allowed()` gates `handle_draw`/`handle_draw_indexed` |
+| D3D12 helper-DLL real-device vtable hooking | High | ✅ `test_d3d12_helper_real_device_hooks.exe`; 4 hooks fire and remove cleanly |
+| Schema migration v0→v1→v2→v3 | High | ✅ `test_schema_migration_multihop` + WAL integration tests |
+
+---
+
+## Phase 9 — Production Hardening & Telemetry (COMPLETE)
+
+### Purpose
+Stabilize the validated paths, close documentation gaps, and ensure the layer is usable in production on known hardware.
+
+| Item | File | Status |
+|:-----|:-----|:-------|
+| Compute/bandwidth telemetry as production default | `README.md`, `docs/ROADMAP_PRODUCTION_GRADE.md` | ✅ |
+| Runtime hardware blocklist for draw telemetry | `synapse/hardware/hardware_blocklist.h`, `synapse/layer_entry.cpp` | ✅ |
+| Draw telemetry gated in `handle_draw`/`handle_draw_indexed` | `synapse/synapse_core.cpp` | ✅ |
+| D3D12 helper-DLL overhead baseline | `synapse/tools/bench_d3d12_helper_multi_hook_overhead.cpp` | ✅ |
+| D3D12 helper-DLL multi-hook validation | `synapse/tools/test_d3d12_helper_multi_hook.cpp` | ✅ |
+| WAL→SchemaMigration integration test | `synapse/tools/test_wal_schema_migration.cpp` | ✅ |
+| v0.9.0 release tag | Git tag `v0.9.0` | ✅ |
+
+### Remaining Open Items (Phase 9 → Phase 10)
+
+| Item | Priority | Notes |
+|:-----|:---------|:------|
+| `hardware_fence_completed()` real KMD path on Linux (`sync_wait`) | High | Guarded behind `SYNAPSE_REAL_FENCE`; untested on real hardware |
+| `hardware_fence_completed()` real KMD path on Windows (`D3DKMTWait`) | High | Guarded behind `SYNAPSE_REAL_FENCE`; untested on real hardware |
+| `trigger_async_load()` real DMA via `drmIoctl` / `D3DKMTRender` | High | Guarded behind `SYNAPSE_REAL_DMA`; untested on real hardware |
+| `submit_isa_to_gpu()` real path via `VK_EXT_shader_object` | Medium | Stub with safe Oracle fallback |
+| `vkCmdBindDescriptorSets` intercept → `notify_bind_image()` | Medium | Required for live ITS image tracking |
+| Wire real `ITSCacheController` LRU eviction tracking into `SynapseCore` | Medium | Currently engine uses own atomic counters |
+| `PowerEstimator::log_transaction()` called from ITS load/evict paths | High | Currently estimator sees no transactions |
+| Live data populated into `report.json` from `build_session_report()` | High | Currently placeholder values |
+
+---
+
+## Phase 10 — Cross-Platform Validation (ACTIVE)
+
+### Purpose
+Validate the layer on Linux with Clang 17 and complete the remaining KMD-gated stubs with real kernel interactions.
+
+| Item | File | Status |
+|:-----|:-----|:-------|
+| Linux/Clang 17 build validation | `CMakeLists.txt`, `synapse/` | 🟡 Code structure verified; actual build requires Linux host |
+| Real KMD fence/DMA validation | `synapse/its_engine_hardened.h` | 🟡 Implemented behind guards; untested |
+| NixOS runner integration | `nix/flake.nix` | 🟡 Scaffolded; full validation requires Nix environment |
 
 ---
 
