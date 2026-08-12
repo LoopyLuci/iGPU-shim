@@ -14,6 +14,27 @@
 #include <shared_mutex>
 #include <chrono>
 
+// Platform-specific KMD headers for real fence/DMA paths
+#if defined(SYNAPSE_REAL_FENCE) && defined(_WIN32)
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <Windows.h>
+#  include <d3dkmthk.h>
+#endif
+
+#if defined(SYNAPSE_REAL_FENCE) && defined(__linux__)
+#  include <unistd.h>
+#  include <sys/ioctl.h>
+#  include <cerrno>
+#  include <linux/sync_file.h>
+#endif
+
+#if defined(SYNAPSE_REAL_DMA) && defined(__linux__)
+#  include <fcntl.h>
+#  include <drm/drm.h>
+#endif
+
 namespace synapse {
 
 struct MipResidencyState {
@@ -163,16 +184,39 @@ private:
     bool hardware_fence_completed(uint64_t fence_id) noexcept {
 #if defined(SYNAPSE_REAL_FENCE) && defined(_WIN32)
         // Windows path: D3DKMTWait for the fence signalled by the KMD.
-        // TODO(T1-1): #include <d3dkmthk.h>, call D3DKMTWaitForSynchronizationObject2.
-        // Documented fallback: return true while MMIO plumbing is in progress.
-        (void)fence_id;
+        // fence_id is a D3DKMT fence handle (opaque uint64 from KMD).
+        if (fence_id == 0) return true;  // Null fence = always complete
+
+        D3DKMT_WAITFENCESYNCOBJECT wait{};
+        wait.hFence = reinterpret_cast<D3DKMT_FENCEHANDLE>(fence_id);
+        wait.Timeout = 0;  // Non-blocking poll
+
+        NTSTATUS status = D3DKMTWaitFenceSyncObject(&wait);
+        if (status == STATUS_SUCCESS) {
+            return true;   // Fence signalled
+        }
+        if (status == STATUS_TIMEOUT) {
+            return false;  // Fence pending
+        }
+        // Error or device-lost: treat as complete to avoid infinite wait
         return true;
+
 #elif defined(SYNAPSE_REAL_FENCE) && defined(__linux__)
         // Linux path: sync_wait on the DRM fence fd stored in fence_id.
-        // TODO(T1-1): open fence fd = (int)fence_id, call sync_wait(fd, 0 /*timeout*/).
-        // Documented fallback: return true while DRM wiring is in progress.
-        (void)fence_id;
-        return true;
+        // fence_id is a file descriptor pointing to a sync_file.
+        if (fence_id == 0) return true;  // Null fence = always complete
+
+        int fd = static_cast<int>(fence_id);
+        if (fd < 0) return true;  // Invalid fd = treat as complete
+
+        // sync_wait(fd, 0) returns 0 if signalled, -1 with errno=ETIME if pending
+        int result = sync_wait(fd, 0 /* non-blocking */);
+        if (result == 0) {
+            return true;   // Fence signalled
+        }
+        // ETIME or other error: treat as pending or complete based on errno
+        return (errno != ETIME && errno != EAGAIN);
+
 #elif defined(SYNAPSE_REAL_FENCE)
 #  warning "SYNAPSE_REAL_FENCE is set but no platform fence implementation is available"
         (void)fence_id;
@@ -192,16 +236,27 @@ private:
     // -----------------------------------------------------------------------
     void trigger_async_load(TextureObject& tex, uint32_t mip_level) {
         auto& mr = tex.residency[mip_level];
-#if defined(SYNAPSE_REAL_DMA)
-        // Real KMD path — slot in the hardware DMA call here once plumbing is ready.
-        // TODO(T1-2): Enqueue DMA transfer via KMD ioctl (Linux drmIoctl) or
-        // D3DKMTRender (Windows). Record the fence id returned by the KMD into
-        // mr.dma_fence_id. Until MMIO plumbing is complete, document safe fallback:
+#if defined(SYNAPSE_REAL_DMA) && defined(__linux__)
+        // Real KMD path — enqueue DMA transfer via DRM_IOCTL_SYNCOOBJ_TIMELINE_WAIT
+        // or legacy DRM_IOCTL_MODE_GETFB / dumb buffer copy for non-tiling.
+        // For now: record a synthetic fence id and mark resident. When the
+        // actual DRM syncobj ioctl path is wired, replace with:
+        //   struct drm_syncobj_timeline_wait wait = { ... };
+        //   ioctl(drm_fd, DRM_IOCTL_SYNCOBJ_TIMELINE_WAIT, &wait);
         mr.dma_fence_id.store(1u, std::memory_order_relaxed);
         mr.is_resident.store(true, std::memory_order_release);
         if (power_estimator_) {
             // Estimate full mip size for this level and log as saved bandwidth
             // once real DMA byte counts are available.
+            power_estimator_->log_transaction(tex.width * tex.height * 4, 0);
+        }
+#elif defined(SYNAPSE_REAL_DMA)
+        // Windows D3DKMTRender path — placeholder for future implementation
+        // TODO(T1-2): Enqueue DMA transfer via D3DKMTRender. Record the fence
+        // id returned by the KMD into mr.dma_fence_id.
+        mr.dma_fence_id.store(1u, std::memory_order_relaxed);
+        mr.is_resident.store(true, std::memory_order_release);
+        if (power_estimator_) {
             power_estimator_->log_transaction(tex.width * tex.height * 4, 0);
         }
 #else

@@ -1669,6 +1669,9 @@ private:
 | Thermal / power | N/A | Intel UHD 630 / driver 9466 does not expose these via available Windows user-mode APIs |
 
 ### Active Work
-1. Validate helper-DLL hooking on real D3D12 device vtable slots (helper DLL → real device entry-point coverage)
+1. ~~Validate helper-DLL hooking on real D3D12 device vtable slots~~ ✅ DONE (`test_d3d12_helper_real_device_hooks.exe`, commit fca5148)
 2. Expand schema migration coverage beyond v0→v1 (multi-hop v2+ migration paths)
-3. NixOS runner integration and local validation on NixOS host
+3. `hardware_fence_completed()` real KMD paths: Linux (`sync_wait`) + Windows (`D3DKMTWait`) — behind `SYNAPSE_REAL_FENCE` guard
+4. `trigger_async_load()` real DMA — behind `SYNAPSE_REAL_DMA` guard
+5. Linux/Clang 17 build validation
+6. Vulkan draw-path: accept compute/bandwidth telemetry as production substitute; document hardware-boundary decision
