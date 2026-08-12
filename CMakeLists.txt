@@ -185,7 +185,15 @@ foreach(TEST_SRC ${TOOL_TEST_SRCS})
         "${Vulkan_INCLUDE_DIRS}"
     )
     target_link_libraries("${TEST_NAME}" PRIVATE SynapseLayer Vulkan::Vulkan)
-    add_test(NAME "${TEST_NAME}" COMMAND "${TEST_NAME}")
+
+    # Diagnostic crash-isolation tools are excluded from CTest because
+    # they intentionally trigger driver crashes (exit 139) to localize
+    # the failure point. They are run manually, not in CI.
+    if(TEST_NAME MATCHES "test_vulkan_draw_path_crash")
+        message(STATUS "Tool excluded from CTest (manual diagnostic): ${TEST_NAME}")
+    else()
+        add_test(NAME "${TEST_NAME}" COMMAND "${TEST_NAME}")
+    endif()
 endforeach()
 
 # ── Tool executables ───────────────────────────────────────────────────────────
