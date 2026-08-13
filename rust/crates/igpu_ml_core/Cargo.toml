@@ -5,6 +5,9 @@ edition.workspace = true
 description = "Core ML runtime for Synapse iGPU: model registry, inference, replay buffer, trainer"
 license.workspace = true
 
+[build-dependencies]
+cbindgen = "0.27"
+
 [dependencies]
 serde.workspace = true
 thiserror.workspace = true
