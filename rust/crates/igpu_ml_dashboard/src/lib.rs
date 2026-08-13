@@ -31,7 +31,7 @@ struct DashboardState {
 }
 
 #[tokio::main]
-async fn main() {
+pub async fn run() {
     let state = DashboardState {
         models: Arc::new(Mutex::new(HashMap::new())),
     };

@@ -14,3 +14,7 @@ tower-http.workspace = true
 tower.workspace = true
 igpu_ml_core = { path = "../igpu_ml_core" }
 igpu_ml_models = { path = "../igpu_ml_models" }
+
+[[bin]]
+name = "igpu_ml_dashboard"
+path = "src/main.rs"

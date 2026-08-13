@@ -212,6 +212,7 @@
       <button data-section="power">Power &amp; Thermal</button>
       <button data-section="backend">Backends</button>
       <button data-section="wal">WAL</button>
+      <button data-section="ml">ML</button>
       <button data-section="settings">Settings</button>
       <button data-section="tools">Tools</button>
     </nav>
@@ -282,6 +283,16 @@
             <thead><tr><th>#</th><th>Type</th><th>Size</th><th>Time</th></tr></thead>
             <tbody></tbody>
           </table>
+        </div>
+      </section>
+
+      <section id="ml" class="section">
+        <div class="toolbar"><strong>Machine Learning</strong><button class="pill primary" id="mlInfer">Infer</button><button class="pill" id="mlObserve">Observe</button><button class="pill" id="mlExplain">Explain</button></div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Action scores</h3><div class="chart-wrap"><canvas id="chartMlScores"></canvas></div></div>
+          <div class="card"><h3>Confidence</h3><div class="chart-wrap"><canvas id="chartMlConfidence"></canvas></div></div>
+          <div class="card"><h3>Feature importances</h3><div class="chart-wrap"><canvas id="chartMlFeatures"></canvas></div></div>
+          <div class="card"><h3>Training metrics</h3><div id="mlMetrics">No updates yet</div></div>
         </div>
       </section>
 
@@ -540,6 +551,56 @@
       await refreshPower(report);
       await refreshBackend(report);
       await refreshWal();
+      await refreshMl();
+    }
+
+    async function refreshMl() {
+      try {
+        const data = await api('/api/ml/infer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shader_complexity_norm: 0.1, vertex_count_log_norm: 0.2, draw_call_rate_norm: 0.3, cache_hit_rate: 0.4, dvfs_headroom: 0.5, thermal_headroom: 0.6, predictor_accuracy: 0.7, is_compute_dispatch: 0.0 }) });
+        if (!data.ok) return;
+        const json = await data.json();
+        window._mlInference = json;
+        updateMlCharts(json);
+      } catch (e) {
+        console.error('ML refresh failed', e);
+      }
+    }
+
+    function updateMlCharts(json) {
+      const scores = json.scores || [0, 0, 0];
+      const labels = ['JIT', 'HAI', 'Oracle'];
+      makeChart('chartMlScores', 'bar', { labels, datasets: [{ data: scores, backgroundColor: ['#4f8cff', '#22d3a7', '#f0c246'] }] });
+
+      makeChart('chartMlConfidence', 'line', { labels: ['confidence'], datasets: [{ data: [json.confidence || 0], borderColor: '#4f8cff', backgroundColor: 'rgba(79,140,255,.2)', fill: true }] });
+
+      const features = json.explanation || [];
+      const featureLabels = features.map((_, i) => `f${i + 1}`);
+      makeChart('chartMlFeatures', 'bar', { labels: featureLabels, datasets: [{ data: features, backgroundColor: '#22d3a7' }] });
+    }
+
+    async function doMlObserve() {
+      const payload = { features: { shader_complexity_norm: 0.1, vertex_count_log_norm: 0.2, draw_call_rate_norm: 0.3, cache_hit_rate: 0.4, dvfs_headroom: 0.5, thermal_headroom: 0.6, predictor_accuracy: 0.7, is_compute_dispatch: 0.0 }, action: 0, reward: 0.9 };
+      const res = await api('/api/ml/observe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (res.ok) {
+        const json = await res.json();
+        document.getElementById('mlMetrics').textContent = `loss=${json.loss?.toFixed(4)} grad=${json.gradient_norm?.toFixed(4)} lr=${json.learning_rate?.toFixed(6)}`;
+        toast('Observation recorded');
+      } else {
+        toast('Observe failed');
+      }
+    }
+
+    async function doMlExplain() {
+      const payload = { shader_complexity_norm: 0.1, vertex_count_log_norm: 0.2, draw_call_rate_norm: 0.3, cache_hit_rate: 0.4, dvfs_headroom: 0.5, thermal_headroom: 0.6, predictor_accuracy: 0.7, is_compute_dispatch: 0.0 };
+      const res = await api('/api/ml/explain', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (res.ok) {
+        const json = await res.json();
+        const el = document.getElementById('mlMetrics');
+        el.textContent = 'explain=' + JSON.stringify(json).slice(0, 200);
+        toast('Explanation updated');
+      } else {
+        toast('Explain failed');
+      }
     }
 
     function connectWs() {
@@ -550,6 +611,7 @@
         if (msg.type === 'report') await refreshOverview(msg.data);
         else if (msg.type === 'settings') { settings = msg.data; renderSettings(); }
         else if (msg.type === 'wal') await refreshWal();
+        else if (msg.type === 'ml') updateMlCharts(msg.data);
       };
       ws.onclose = () => setTimeout(connectWs, 1500);
     }
@@ -560,6 +622,9 @@
     document.getElementById('refreshPower').addEventListener('click', () => refreshPower());
     document.getElementById('refreshBackend').addEventListener('click', () => refreshBackend());
     document.getElementById('refreshWal').addEventListener('click', refreshWal);
+    document.getElementById('mlInfer').addEventListener('click', refreshMl);
+    document.getElementById('mlObserve').addEventListener('click', doMlObserve);
+    document.getElementById('mlExplain').addEventListener('click', doMlExplain);
     document.getElementById('saveSettings').addEventListener('click', saveSettings);
 
     document.getElementById('autoRefresh').addEventListener('click', async () => {
