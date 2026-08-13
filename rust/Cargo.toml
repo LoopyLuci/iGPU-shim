@@ -5,6 +5,7 @@ members = [
   "crates/igpu_ml_optim",
   "crates/igpu_ml_python",
   "crates/igpu_ml_ffi",
+  "crates/igpu_ml_dashboard",
 ]
 resolver = "2"
 
@@ -16,6 +17,7 @@ repository = "https://github.com/LoopyLuci/iGPU-shim"
 
 [workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 thiserror = "2"
 byteorder = "1"
 blake3 = "1"
@@ -31,3 +33,7 @@ rand = "0.8"
 pyo3 = { version = "0.21", features = ["extension-module"] }
 cbindgen = "0.27"
 numpy = "0.19"
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }

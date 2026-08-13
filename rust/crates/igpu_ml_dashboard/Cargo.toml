@@ -1,0 +1,16 @@
+[package]
+name = "igpu_ml_dashboard"
+version.workspace = true
+edition.workspace = true
+description = "Rust Axum dashboard backend for Synapse iGPU ML telemetry"
+license.workspace = true
+
+[dependencies]
+axum.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tower-http.workspace = true
+tower.workspace = true
+igpu_ml_core = { path = "../igpu_ml_core" }
+igpu_ml_models = { path = "../igpu_ml_models" }
