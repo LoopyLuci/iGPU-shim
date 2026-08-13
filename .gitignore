@@ -88,3 +88,7 @@ test_header.cpp
 test_vulkan.cpp
 compile_commands.json
 synapse_debug.log
+
+# Rust build artifacts
+rust/target/
+rust/Cargo.lock
