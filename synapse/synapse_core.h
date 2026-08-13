@@ -15,6 +15,8 @@
 #include "telemetry_types.h"
 #include "hardware/hardware_blocklist.h"
 #include "ml/ml_sub_api.h"
+#ifdef SYNAPSE_ML_FFI
+#endif
 #include "ml/reward_calculator.h"
 #include "power_estimator.h"
 

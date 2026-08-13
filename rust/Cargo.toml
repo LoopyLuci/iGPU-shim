@@ -4,6 +4,7 @@ members = [
   "crates/igpu_ml_models",
   "crates/igpu_ml_optim",
   "crates/igpu_ml_python",
+  "crates/igpu_ml_ffi",
 ]
 resolver = "2"
 

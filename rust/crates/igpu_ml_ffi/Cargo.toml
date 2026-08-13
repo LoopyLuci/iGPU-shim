@@ -1,0 +1,14 @@
+[package]
+name = "igpu_ml_ffi"
+version.workspace = true
+edition.workspace = true
+description = "C FFI wrapper for Synapse iGPU ML models"
+license.workspace = true
+
+[dependencies]
+igpu_ml_core = { path = "../igpu_ml_core" }
+igpu_ml_models = { path = "../igpu_ml_models" }
+libc = "0.2"
+
+[lib]
+crate-type = ["staticlib"]
