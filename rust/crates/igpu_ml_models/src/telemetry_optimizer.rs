@@ -38,7 +38,6 @@ pub struct TelemetryOptimizer {
     config: TelemetryOptimizerConfig,
     weights: Vec<Array2<f32>>,
     biases: Vec<Array1<f32>>,
-    rng: rand::rngs::StdRng,
     version: String,
     training_steps: u64,
 }
@@ -73,7 +72,7 @@ impl TelemetryOptimizer {
             config,
             weights,
             biases,
-            rng,
+            
             version: "1.0.0".to_string(),
             training_steps: 0,
         }

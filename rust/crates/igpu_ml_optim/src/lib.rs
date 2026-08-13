@@ -1,6 +1,4 @@
-use igpu_ml_core::{
-    BatchResult, Experience, FeatureVector, IgpuMlError, Model, UpdateResult,
-};
+use igpu_ml_core::Experience;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

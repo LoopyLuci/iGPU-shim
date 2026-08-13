@@ -1,4 +1,3 @@
-use crate::error::IgpuMlError;
 use serde::{Deserialize, Serialize};
 
 #[repr(C)]

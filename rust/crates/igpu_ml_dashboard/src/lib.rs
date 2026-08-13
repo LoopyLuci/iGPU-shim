@@ -13,7 +13,7 @@ use tower_http::cors::CorsLayer;
 
 mod inner {
     pub use igpu_ml_core::*;
-    pub use igpu_ml_models::*;
+    // pub use igpu_ml_models::*; // unused
 }
 
 #[derive(Clone, Serialize, Deserialize)]
