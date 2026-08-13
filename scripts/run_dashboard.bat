@@ -1,5 +1,6 @@
 @echo off
-echo Starting Synapse iGPU Dashboard...
-cd /d %~dp0dashboard
-python -m uvicorn app:app --host 127.0.0.1 --port 8765
+echo Starting Synapse iGPU Dashboard (Rust Axum)...
+cd /d %~dp0..
+cd rust
+cargo run -p igpu_ml_dashboard
 pause

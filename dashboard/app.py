@@ -1,3 +1,4 @@
+# Deprecated: use scripts/run_dashboard.bat (Rust backend)
 """
 dashboard/app.py
 Project Synapse – iGPU Dashboard backend

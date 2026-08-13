@@ -39,6 +39,7 @@ pub async fn run() {
     let app = Router::new()
         .route("/", get(index))
         .route("/api/health", get(health))
+        .route("/api/report", get(report))
         .route("/api/ml/infer", post(infer_backend))
         .route("/api/ml/observe", post(observe_outcome))
         .route("/api/ml/explain", post(explain_action))
@@ -60,6 +61,16 @@ async fn index() -> Html<&'static str> {
 
 async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({"status":"ok","service":"synapse-dashboard"}))
+}
+
+async fn report() -> Json<serde_json::Value> {
+    match std::fs::read_to_string("../../../../report.json") {
+        Ok(body) => match serde_json::from_str(&body) {
+            Ok(v) => Json(v),
+            Err(_) => Json(serde_json::json!({"_error": "invalid report.json"})),
+        },
+        Err(_) => Json(serde_json::json!({"_error": "report.json not found"})),
+    }
 }
 
 async fn infer_backend(
