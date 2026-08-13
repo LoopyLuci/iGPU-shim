@@ -286,6 +286,16 @@
         </div>
       </section>
 
+      <section id="reports" class="section">
+        <div class="toolbar"><strong>Reports</strong><button class="pill primary" id="refreshReport">Refresh</button></div>
+        <div class="card">
+          <table id="reportTable">
+            <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
       <section id="ml" class="section">
         <div class="toolbar"><strong>Machine Learning</strong><button class="pill primary" id="mlInfer">Infer</button><button class="pill" id="mlObserve">Observe</button><button class="pill" id="mlExplain">Explain</button></div>
         <div class="grid cols-2">
@@ -496,6 +506,26 @@
       });
     }
 
+    async function refreshReport() {
+      const data = await api('/api/report');
+      const tbody = document.querySelector('#reportTable tbody');
+      tbody.innerHTML = '';
+      const flatten = (prefix, obj) => {
+        Object.entries(obj).forEach(([k, v]) => {
+          const key = prefix ? `${prefix}.${k}` : k;
+          if (v && typeof v === 'object' && !Array.isArray(v)) {
+            flatten(key, v);
+          } else {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${key}</td><td>${Array.isArray(v) ? JSON.stringify(v) : String(v ?? '--')}</td>`;
+            tbody.appendChild(tr);
+          }
+        });
+      };
+      if (data && !data._error) flatten('', data);
+      else tbody.innerHTML = '<tr><td colspan="2">No report</td></tr>';
+    }
+
     async function loadSettings() {
       const data = await api('/api/settings');
       if (data && !data._error) settings = data;
@@ -616,7 +646,7 @@
       ws.onclose = () => setTimeout(connectWs, 1500);
     }
 
-    document.getElementById('refreshReport').addEventListener('click', refreshOverview);
+    document.getElementById('refreshReport').addEventListener('click', refreshReport);
     document.getElementById('refreshTelemetry').addEventListener('click', () => refreshTelemetry());
     document.getElementById('refreshIts').addEventListener('click', () => refreshIts());
     document.getElementById('refreshPower').addEventListener('click', () => refreshPower());

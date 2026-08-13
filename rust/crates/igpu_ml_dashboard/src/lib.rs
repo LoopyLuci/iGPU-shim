@@ -82,12 +82,24 @@ async fn report() -> Json<serde_json::Value> {
         "backend_routing": {"jit_dispatches": 0, "hai_dispatches": 0, "oracle_dispatches": 0, "total_draw_calls": 0}
     });
 
-    match std::fs::read_to_string("../../../../report.json") {
-        Ok(body) => match serde_json::from_str(&body) {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let mut report_path = cwd.join("report.json");
+    if !report_path.exists() {
+        report_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../report.json");
+    }
+    if !report_path.exists() {
+        if let Ok(exe) = std::env::current_exe() {
+            report_path = exe.parent().unwrap().join("report.json");
+        }
+    }
+    let body = std::fs::read_to_string(&report_path).unwrap_or_default();
+    if body.is_empty() {
+        Json(default_report)
+    } else {
+        match serde_json::from_str(&body) {
             Ok(v) => Json(v),
             Err(_) => Json(default_report),
-        },
-        Err(_) => Json(default_report),
+        }
     }
 }
 
