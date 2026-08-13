@@ -286,3 +286,20 @@ D3D12 design note:
 - **Headless limitations**: Graphics-pipeline submission requires a display server. Without one, the Intel driver may crash before the layer can intercept.
 - **Thermal/power APIs**: Intel UHD 630 / driver 9466 does not expose power or thermal data via available Windows user-mode APIs.
 - **Discrete GPU**: Untested and unsupported on discrete GPU hardware.
+
+## Dashboard
+
+The dashboard is a Rust Axum web UI backed by ML telemetry.
+
+- Launch: `scripts\run_dashboard.bat`
+- Open: `http://127.0.0.1:8765`
+- Endpoints:
+  - `GET /` — UI
+  - `GET /api/health`
+  - `GET /api/report` — session `report.json`
+  - `POST /api/ml/infer`
+  - `POST /api/ml/observe`
+  - `POST /api/ml/explain`
+
+- Smoke test: `scripts\test_dashboard_smoke.bat`
+- End-to-end report test: `python scripts/test_report_e2e.py`
