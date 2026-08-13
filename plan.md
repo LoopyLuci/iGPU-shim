@@ -262,7 +262,7 @@ When `shader_complexity_trend > COMPLEXITY_THRESHOLD` AND `confidence > 0.82f`:
 
 ---
 
-## Phase 6 — Verification, Profiling & Refinement (ACTIVE)
+## Phase 6 — Verification, Profiling ## Phase 6 — Verification, Profiling & Refinement (ACTIVE) Refinement (COMPLETE)
 
 ### Goals
 
@@ -452,7 +452,7 @@ Validate the layer on Linux with Clang 17 and complete the remaining KMD-gated s
 
 ---
 
-## Phase 8 — Native Hardware Integration (ACTIVE)
+## Phase 8 — Native Hardware Integration (COMPLETE)
 
 ### Purpose
 Replace every documented stub with a real implementation or a hardened, explicitly-documented fallback codepath. The layer must load via the Vulkan implicit layer manifest on both Windows 11 and Ubuntu 24.04, and must compile cleanly with MSVC 19.x and Clang 17+.
