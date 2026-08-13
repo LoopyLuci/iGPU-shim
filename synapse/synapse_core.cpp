@@ -4,6 +4,7 @@
 //                   User Profile, ConfigWatcher, and Crash Recovery wired in.
 // ============================================================================
 #include "synapse_core.h"
+#include "json_report_writer.h"
 
 #include "hai_frontend_sim.h"
 
@@ -109,6 +110,7 @@ SynapseCore::~SynapseCore() {
         recovery_->mark_clean_shutdown();
     }
 
+    write_session_report(build_session_report(), data_dir_.empty() ? std::string("report.json") : data_dir_ + "/report.json");
     // Stop analyzer thread
     analyzer_.shutdown();
     if (analyzer_thread_.joinable()) analyzer_thread_.join();

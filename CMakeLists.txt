@@ -55,6 +55,7 @@ option(SYNAPSE_POWER_VERIFY
 # vkGetInstanceProcAddr / vkGetDeviceProcAddr symbols required by the loader.
 file(GLOB SYNAPSE_CORE_SRCS
     "${CMAKE_CURRENT_SOURCE_DIR}/synapse/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/synapse/json_report_writer.cpp"
 )
 
 # layer_entry.cpp lives directly in synapse/
