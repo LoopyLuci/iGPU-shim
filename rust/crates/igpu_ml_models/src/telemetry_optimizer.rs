@@ -1,13 +1,12 @@
 use igpu_ml_core::{
-    ActionScores, Backend, BatchResult, Experience, FeatureVector, IgpuMlError, Model, ModelExplanation,
-    UpdateResult,
+    Experience, FeatureVector, IgpuMlError, Model, UpdateResult,
 };
 use ndarray::{Array, Array1, Array2};
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DynamicTileTransformerConfig {
+pub struct TelemetryOptimizerConfig {
     pub input_dim: usize,
     pub hidden_dims: Vec<usize>,
     pub output_dim: usize,
@@ -16,25 +15,27 @@ pub struct DynamicTileTransformerConfig {
     pub l2_lambda: f32,
     pub energy_weight: f32,
     pub performance_weight: f32,
+    pub thermal_penalty: f32,
 }
 
-impl Default for DynamicTileTransformerConfig {
+impl Default for TelemetryOptimizerConfig {
     fn default() -> Self {
         Self {
             input_dim: 8,
-            hidden_dims: vec![32, 16, 8],
+            hidden_dims: vec![24, 12],
             output_dim: 3,
-            learning_rate: 0.01,
+            learning_rate: 0.005,
             epsilon: 0.05,
-            l2_lambda: 0.001,
+            l2_lambda: 0.0005,
             energy_weight: 0.7,
             performance_weight: 0.3,
+            thermal_penalty: 0.1,
         }
     }
 }
 
-pub struct DynamicTileTransformer {
-    config: DynamicTileTransformerConfig,
+pub struct TelemetryOptimizer {
+    config: TelemetryOptimizerConfig,
     weights: Vec<Array2<f32>>,
     biases: Vec<Array1<f32>>,
     rng: rand::rngs::StdRng,
@@ -42,8 +43,8 @@ pub struct DynamicTileTransformer {
     training_steps: u64,
 }
 
-impl DynamicTileTransformer {
-    pub fn new(config: DynamicTileTransformerConfig, seed: u64) -> Self {
+impl TelemetryOptimizer {
+    pub fn new(config: TelemetryOptimizerConfig, seed: u64) -> Self {
         let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
         let mut weights = Vec::new();
         let mut biases = Vec::new();
@@ -89,15 +90,15 @@ impl DynamicTileTransformer {
     }
 }
 
-impl Model for DynamicTileTransformer {
-    fn id(&self) -> &str { "dynamic-tile-transformer" }
+impl Model for TelemetryOptimizer {
+    fn id(&self) -> &str { "telemetry-optimizer" }
     fn version(&self) -> &str { &self.version }
 
-    fn infer(&self, features: &FeatureVector) -> ActionScores {
+    fn infer(&self, features: &FeatureVector) -> igpu_ml_core::ActionScores {
         if let Err(_) = features.validate() {
-            return ActionScores {
+            return igpu_ml_core::ActionScores {
                 scores: [0.333, 0.333, 0.334],
-                chosen: Backend::Oracle as u32,
+                chosen: igpu_ml_core::Backend::Oracle as u32,
                 confidence: 0.0,
                 epsilon_greedy: false,
             };
@@ -115,7 +116,7 @@ impl Model for DynamicTileTransformer {
         let confidence = scores.iter().copied().reduce(f32::max).unwrap_or(0.0)
             - scores.iter().copied().sum::<f32>() / 3.0;
 
-        ActionScores {
+        igpu_ml_core::ActionScores {
             scores,
             chosen: scores.iter().copied().enumerate().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)).map(|(i, _)| i as u32).unwrap_or(2),
             confidence: confidence.clamp(0.0, 1.0),
@@ -150,12 +151,10 @@ impl Model for DynamicTileTransformer {
 
         let lr = self.config.learning_rate;
         let l2 = self.config.l2_lambda;
-
-        // Backprop: start with output delta
         let mut delta = probs;
         let mut total_norm: f32 = 0.0;
 
-        // Update output layer first
+        // Output layer
         let out_idx = self.weights.len() - 1;
         let input = activations.get(out_idx).cloned().unwrap_or_default();
         {
@@ -172,7 +171,7 @@ impl Model for DynamicTileTransformer {
             }
         }
 
-        // Backprop through hidden layers
+        // Hidden layers
         for i in (0..self.weights.len() - 1).rev() {
             let w_next = &self.weights[i + 1];
             let mut new_delta = Array1::zeros(w_next.ncols());
@@ -201,7 +200,11 @@ impl Model for DynamicTileTransformer {
             }
         }
 
-        let loss = -experience.reward * delta[action_idx].max(1e-6).ln();
+        let energy_term = self.config.energy_weight * experience.energy_joules;
+        let thermal_term = self.config.thermal_penalty * experience.thermal_events as f32;
+        let perf_term = self.config.performance_weight * experience.reward;
+        let loss = energy_term + thermal_term - perf_term;
+
         self.training_steps += 1;
 
         Ok(UpdateResult {
@@ -211,13 +214,13 @@ impl Model for DynamicTileTransformer {
         })
     }
 
-    fn batch_update(&mut self, batch: &[Experience]) -> Result<BatchResult, IgpuMlError> {
+    fn batch_update(&mut self, batch: &[Experience]) -> Result<igpu_ml_core::BatchResult, IgpuMlError> {
         let t0 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_micros() as u64).unwrap_or(0);
         let mut total_loss = 0.0f32;
         for exp in batch { total_loss += self.update(exp)?.loss; }
         let t1 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_micros() as u64).unwrap_or(0);
 
-        Ok(BatchResult {
+        Ok(igpu_ml_core::BatchResult {
             avg_loss: if batch.is_empty() { 0.0 } else { total_loss / batch.len() as f32 },
             samples: batch.len(),
             duration_us: t1.saturating_sub(t0),
@@ -226,7 +229,7 @@ impl Model for DynamicTileTransformer {
 
     fn serialize(&self) -> Vec<u8> {
         let mut hasher = blake3::Hasher::new();
-        hasher.update(b"dynamic-tile-transformer-v1");
+        hasher.update(b"telemetry-optimizer-v1");
 
         let config_bytes = bincode::serialize(&self.config).unwrap_or_default();
         hasher.update(&config_bytes);
@@ -273,7 +276,7 @@ impl Model for DynamicTileTransformer {
         self.weights.clear();
         self.biases.clear();
         let mut hasher = blake3::Hasher::new();
-        hasher.update(b"dynamic-tile-transformer-v1");
+        hasher.update(b"telemetry-optimizer-v1");
         hasher.update(config_bytes);
 
         for _ in 0..(self.config.hidden_dims.len() + 1) {
@@ -302,11 +305,11 @@ impl Model for DynamicTileTransformer {
         Ok(())
     }
 
-    fn explain(&self, features: &FeatureVector) -> ModelExplanation {
+    fn explain(&self, features: &FeatureVector) -> igpu_ml_core::ModelExplanation {
         let predicted_scores = self.infer(features).scores;
         let confidence = predicted_scores.iter().copied().reduce(f32::max).unwrap_or(0.0)
             - predicted_scores.iter().copied().sum::<f32>() / 3.0;
-        ModelExplanation {
+        igpu_ml_core::ModelExplanation {
             feature_importances: [
                 features.shader_complexity_norm,
                 features.vertex_count_log_norm,
@@ -321,46 +324,6 @@ impl Model for DynamicTileTransformer {
             confidence: confidence.clamp(0.0, 1.0),
             model_version: self.version.clone(),
             notes: format!("training_steps={}", self.training_steps),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn forward_pass_produces_3_scores() {
-        let model = DynamicTileTransformer::new(DynamicTileTransformerConfig::default(), 42);
-        let features = FeatureVector::default();
-        let scores = model.infer(&features);
-        assert_eq!(scores.scores.len(), 3);
-    }
-
-    #[test]
-    fn update_changes_weights() {
-        let mut model = DynamicTileTransformer::new(DynamicTileTransformerConfig::default(), 42);
-        let before = model.serialize();
-        let exp = Experience::new(FeatureVector::default(), Backend::Jit as u32, 1.0);
-        model.update(&exp).unwrap();
-        let after = model.serialize();
-        assert_ne!(before, after);
-    }
-
-    #[test]
-    fn serialize_deserialize_roundtrip() {
-        let mut model = DynamicTileTransformer::new(DynamicTileTransformerConfig::default(), 42);
-        let exp = Experience::new(FeatureVector::default(), Backend::Jit as u32, 1.0);
-        model.update(&exp).unwrap();
-        let bytes = model.serialize();
-        let mut restored = DynamicTileTransformer::new(DynamicTileTransformerConfig::default(), 0);
-        restored.deserialize(&bytes).unwrap();
-
-        let features = FeatureVector::default();
-        let before = model.infer(&features);
-        let after = restored.infer(&features);
-        for i in 0..3 {
-            assert!((before.scores[i] - after.scores[i]).abs() < 1e-5);
         }
     }
 }

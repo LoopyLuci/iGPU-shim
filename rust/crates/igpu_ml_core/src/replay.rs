@@ -78,7 +78,7 @@ mod tests {
         for i in 0..5 {
             buf.push(Experience::new(
                 crate::FeatureVector::default(),
-                crate::Backend::Jit,
+                crate::Backend::Jit as u32,
                 i as f32 / 5.0,
             ));
         }
@@ -93,7 +93,7 @@ mod tests {
         for i in 0..5 {
             buf.push(Experience::new(
                 crate::FeatureVector::default(),
-                crate::Backend::Jit,
+                crate::Backend::Jit as u32,
                 i as f32,
             ));
         }
