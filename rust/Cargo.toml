@@ -1,0 +1,31 @@
+[workspace]
+members = [
+  "crates/igpu_ml_core",
+  "crates/igpu_ml_models",
+  "crates/igpu_ml_optim",
+  "crates/igpu_ml_python",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/LoopyLuci/iGPU-shim"
+
+[workspace.dependencies]
+# Shared workspace dependencies
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2"
+byteorder = "1"
+blake3 = "1"
+bincode = "1"
+ndarray = { version = "0.15", features = ["serde"] }
+rayon = { version = "1.8" }
+bytemuck = { version = "1.14" }
+half = { version = "2.4" }
+num-traits = { version = "0.2" }
+approx = "0.5"
+parking_lot = "0.12"
+rand = "0.8"
+pyo3 = { version = "0.21", features = ["extension-module"] }

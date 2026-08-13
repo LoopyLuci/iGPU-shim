@@ -1,0 +1,23 @@
+[package]
+name = "igpu_ml_core"
+version.workspace = true
+edition.workspace = true
+description = "Core ML runtime for Synapse iGPU: model registry, inference, replay buffer, trainer"
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+byteorder.workspace = true
+blake3.workspace = true
+ndarray.workspace = true
+rayon.workspace = true
+bytemuck.workspace = true
+num-traits.workspace = true
+approx.workspace = true
+parking_lot.workspace = true
+rand.workspace = true
+
+[dev-dependencies]
+criterion = "0.5"
+proptest = "1.4"

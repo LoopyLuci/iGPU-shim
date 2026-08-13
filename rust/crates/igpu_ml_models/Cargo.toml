@@ -1,0 +1,15 @@
+[package]
+name = "igpu_ml_models"
+version.workspace = true
+edition.workspace = true
+description = "Production ML models for Synapse iGPU: DynamicTileTransformer"
+license.workspace = true
+
+[dependencies]
+igpu_ml_core = { path = "../igpu_ml_core" }
+serde.workspace = true
+ndarray.workspace = true
+rand.workspace = true
+thiserror.workspace = true
+blake3.workspace = true
+bincode.workspace = true

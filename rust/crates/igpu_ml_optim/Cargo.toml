@@ -1,0 +1,11 @@
+[package]
+name = "igpu_ml_optim"
+version.workspace = true
+edition.workspace = true
+description = "Optimization algorithms for Synapse iGPU ML: energy-aware loss, LR schedules, policy gradient"
+license.workspace = true
+
+[dependencies]
+igpu_ml_core = { path = "../igpu_ml_core" }
+serde.workspace = true
+thiserror.workspace = true

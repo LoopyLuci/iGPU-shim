@@ -1,0 +1,15 @@
+[package]
+name = "igpu_ml_python"
+version.workspace = true
+edition.workspace = true
+description = "Python bindings for Synapse iGPU ML via PyO3"
+license.workspace = true
+
+[dependencies]
+igpu_ml_core = { path = "../igpu_ml_core" }
+igpu_ml_models = { path = "../igpu_ml_models" }
+pyo3.workspace = true
+serde.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
