@@ -31,3 +31,7 @@ cmake -B build-linux -G Ninja -DCMAKE_C_COMPILER=clang-17 -DCMAKE_CXX_COMPILER=c
 cmake --build build-linux
 ctest --test-dir build-linux
 ```
+
+## Deferred: Dashboard Rust Endpoint Tests
+- `cargo test -p igpu_ml_dashboard` harness is blocked by private handler/module visibility
+- Revisit after extracting a testable router/handler layer or switching to integration-test HTTP probes
