@@ -3,6 +3,11 @@
 ## Objective
 Close production-grade validation gaps that are not covered by existing tests or CI.
 
+## Completed
+- **Live `report.json` end-to-end validation**
+  - `/api/report` now serves C++ `report.json`
+  - Verified via `scripts/test_report_e2e.py`
+
 ## Open Items
 1. **Power logging**
    - Status: implemented in telemetry types; runtime logging path not validated on Intel UHD 630
@@ -16,11 +21,7 @@ Close production-grade validation gaps that are not covered by existing tests or
    - Status: hook point stubbed in core; notification pipeline not validated
    - Blocked: D3D12/Vulkan real-device interception validation
 
-4. **Live `report.json` end-to-end validation**
-   - Status: `/api/report` now serves C++ `report.json` if present
-   - Next: verify full application lifetime write path on real driver stack
-
-5. **Linux/Clang 17 validation**
+4. **Linux/Clang 17 validation**
    - Status: Nix flake/devShell added
    - Next: run on Linux host to validate `clang-17` + Ninja build
 
