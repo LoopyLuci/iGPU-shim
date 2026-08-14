@@ -55,6 +55,29 @@ pub async fn run() {
         .expect("serve dashboard");
 }
 
+pub async fn run_with_port(port: u16) {
+    let state = DashboardState {
+        models: Arc::new(Mutex::new(HashMap::new())),
+    };
+
+    let app = Router::new()
+        .route("/", get(index))
+        .route("/api/health", get(health))
+        .route("/api/report", get(report))
+        .route("/api/ml/infer", post(infer_backend))
+        .route("/api/ml/observe", post(observe_outcome))
+        .route("/api/ml/explain", post(explain_action))
+        .layer(CorsLayer::permissive())
+        .with_state(state);
+
+    let listener = TcpListener::bind(("127.0.0.1", port))
+        .await
+        .expect("bind dashboard test");
+    axum::serve(listener, app.into_make_service())
+        .await
+        .expect("serve dashboard test");
+}
+
 async fn index() -> Html<&'static str> {
     Html(include_str!("../../../../dashboard/templates/index.html"))
 }
