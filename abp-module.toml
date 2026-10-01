@@ -1,0 +1,38 @@
+# written by abp_modkit (`python -m abp_modkit adopt` refreshes this file; delete this line to keep it as it is)
+# How AgenticBotPlatform (ABP) builds, runs and drives this project as a module. Operations: abp-ops.toml.
+# Installing the shim registers a Vulkan implicit layer for the whole system: ABP's agents build and test it, but the
+# install operation is for a person to run.
+
+[module]
+id = "i-gpu-shim"
+name = "iGPU-shim"
+repo = "https://github.com/LoopyLuci/iGPU-shim.git"
+branch = "main"
+api = 1
+area = "infrastructure"
+description = "Synapse inserts as a transparent Vulkan implicit layer. To the application, it is a standard driver. To the hardware, it provides optimized, pre-analyzed command streams."
+
+[checkout]
+marker = ["abp-module.toml", "abp-ops.toml"]
+
+[toolchain]
+require = [{ tool = "cmake", min = "3.16", url = "https://cmake.org/download/" }, { tool = "cargo", min = "1.75", url = "https://rustup.rs" }, { tool = "powershell", url = "https://aka.ms/powershell" }]
+
+[build]
+steps = [
+  ["cargo", "build", "--release", "-p", "igpu_ml_dashboard", "--manifest-path", "rust/Cargo.toml"],
+]
+outputs = ["{target}/release/igpu_ml_dashboard{exe}"]
+env = { CARGO_TARGET_DIR = "{target}" }
+
+[hub]
+# abp_modkit's hub: the operations in abp-ops.toml (routes, commands, the project's server)
+start = ["{abp_python}", "-m", "abp_modkit", "serve", "--spec", "{repo}/abp-ops.toml", "--project", "{repo}", "--home", "{data}", "--var", "target={target}"]
+control_file = "{data}/control.json"
+start_timeout_s = 30
+
+[mcp]
+stdio = ["{abp_python}", "-m", "abp_modkit", "mcp", "--home", "{data}"]
+
+[ui]
+panel = "operations"

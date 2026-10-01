@@ -1,0 +1,136 @@
+# What this project can do, as ABP operations (abp_modkit). Edit freely: adopting it again
+# (`python -m abp_modkit adopt .`) keeps edited summaries, settings and ops you added, and picks up new
+# routes and commands.
+
+[service]
+id = "i-gpu-shim"
+name = "iGPU-shim"
+description = "Synapse inserts as a transparent Vulkan implicit layer. To the application, it is a standard driver. To the hardware, it provides optimized, pre-analyzed command streams."
+
+[[op]]
+id = "nix.build"
+kind = "cmd"
+summary = "Build the flake's default package (Linux/macOS)"
+argv = ["nix", "--extra-experimental-features", "nix-command flakes", "build", "."]
+timeout_s = 7200
+background = true
+mutating = true
+
+[[op]]
+id = "nix.check"
+kind = "cmd"
+summary = "Run the flake's checks (Linux/macOS)"
+argv = ["nix", "--extra-experimental-features", "nix-command flakes", "flake", "check", "."]
+timeout_s = 7200
+background = true
+mutating = false
+
+[[op]]
+id = "nix.show"
+kind = "cmd"
+summary = "What the flake provides (Linux/macOS)"
+argv = ["nix", "--extra-experimental-features", "nix-command flakes", "flake", "show", "."]
+timeout_s = 7200
+mutating = false
+
+[[op]]
+id = "cmake.configure"
+kind = "cmd"
+summary = "Configure SynapseIGPUShim with CMake. Options (pass as -DNAME=ON/OFF): SYNAPSE_REAL_FENCE, SYNAPSE_STUB_DMA, SYNAPSE_REAL_DMA, SYNAPSE_POWER_VERIFY"
+argv = ["cmake", "-S", "{project}", "-B", "{target}/cmake-build", "-DCMAKE_BUILD_TYPE=Release"]
+timeout_s = 3600
+background = true
+extra_args = true
+
+[[op]]
+id = "cmake.build"
+kind = "cmd"
+summary = "Build SynapseIGPUShim (after configure)"
+argv = ["cmake", "--build", "{target}/cmake-build", "--config", "Release", "--parallel"]
+timeout_s = 14400
+background = true
+extra_args = true
+
+[[op]]
+id = "cmake.test"
+kind = "cmd"
+summary = "Run SynapseIGPUShim's CTest tests"
+argv = ["ctest", "--test-dir", "{target}/cmake-build", "-C", "Release", "--output-on-failure"]
+timeout_s = 14400
+background = true
+extra_args = true
+mutating = false
+
+[[op]]
+id = "cmake.install"
+kind = "cmd"
+summary = "Install SynapseIGPUShim into the module's data folder"
+argv = ["cmake", "--install", "{target}/cmake-build", "--config", "Release", "--prefix", "{data}/install"]
+timeout_s = 3600
+background = true
+
+[[op]]
+id = "cmake.options"
+kind = "cmd"
+summary = "SynapseIGPUShim's build options and their current values (after configure)"
+argv = ["cmake", "-N", "-LH", "{target}/cmake-build"]
+timeout_s = 120
+mutating = false
+
+[[op]]
+id = "nix_nix.build"
+kind = "cmd"
+summary = "Build the flake's default package (Linux/macOS)"
+argv = ["nix", "--extra-experimental-features", "nix-command flakes", "build", "./nix"]
+timeout_s = 7200
+background = true
+mutating = true
+
+[[op]]
+id = "nix_nix.check"
+kind = "cmd"
+summary = "Run the flake's checks (Linux/macOS)"
+argv = ["nix", "--extra-experimental-features", "nix-command flakes", "flake", "check", "./nix"]
+timeout_s = 7200
+background = true
+mutating = false
+
+[[op]]
+id = "nix_nix.show"
+kind = "cmd"
+summary = "What the flake provides (Linux/macOS)"
+argv = ["nix", "--extra-experimental-features", "nix-command flakes", "flake", "show", "./nix"]
+timeout_s = 7200
+mutating = false
+
+[[op]]
+id = "igpu_ml_dashboard.run"
+kind = "cmd"
+summary = "Run `igpu_ml_dashboard` with the given arguments"
+argv = ["{target}/release/igpu_ml_dashboard{exe}"]
+timeout_s = 600
+extra_args = true
+
+[[op]]
+id = "ps1.run_ctests"
+kind = "cmd"
+summary = "Run run_ctests.ps1 (PowerShell)"
+argv = ["{pwsh}", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "{project}/run_ctests.ps1"]
+timeout_s = 900
+extra_args = true
+
+[[op]]
+id = "ps1.build_windows"
+kind = "cmd"
+summary = "Run scripts/build_windows.ps1 (PowerShell)"
+argv = ["{pwsh}", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "{project}/scripts/build_windows.ps1"]
+timeout_s = 900
+extra_args = true
+
+[[op]]
+id = "ps1.install_deps"
+kind = "cmd"
+summary = "Run scripts/install_deps.ps1 (PowerShell)"
+argv = ["{pwsh}", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "{project}/scripts/install_deps.ps1"]
+timeout_s = 900
+extra_args = true
